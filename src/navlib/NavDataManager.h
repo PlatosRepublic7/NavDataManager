@@ -3,6 +3,7 @@
 #include <vector>
 #include <filesystem>
 #include <SQLiteCpp/Database.h>
+#include "XPlaneDatParser.h"
 
 namespace fs = std::filesystem;
 
@@ -22,11 +23,14 @@ class NavDataManager {
         void scanXP();
 
         /**
-        * @brief Generates the navigation database.
+        * @brief Generates/updates the navigation database and parses all found .dat files.
         * @param db_path Path to the SQLite database file.
         * @throws SQLite::Exception if the database cannot be created.
+        * @note This method will potentially take some time to complete.
         */
         void generateDatabase(const std::string& db_path);
+
+        void parseAllDatFiles();
 
     private:
         std::unique_ptr<SQLite::Database> m_db;
@@ -36,6 +40,7 @@ class NavDataManager {
         fs::path m_customSceneryPath;
         bool m_loggingEnabled;
         std::vector<fs::path> m_allAptFiles;
+        std::unique_ptr<XPlaneDatParser> m_parser;
 
         void getAirportDatPaths(const std::string& xp_dir);
         void createTables();

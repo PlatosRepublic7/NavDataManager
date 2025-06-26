@@ -16,9 +16,30 @@ void NavDataManager::scanXP() {
         getAirportDatPaths(m_xpDirectory);
         // TODO: Add getNavDataPaths and handle similarly
     } catch (const std::exception& e) {
-        std::cerr << "NavDataManager initialization failed: " << e.what() << std::endl;
+        std::cerr << "NavDataManager scanning failed: " << e.what() << std::endl;
         throw;
     }
+}
+
+void NavDataManager::generateDatabase(const std::string& db_path) {
+    try {
+        m_db = std::make_unique<SQLite::Database>(
+            db_path,
+            SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE
+        );
+
+        // Create tables after opening the database
+        createTables();
+
+        if (m_loggingEnabled) {
+            std::cout << "Database created at: " << db_path << std::endl;
+        }
+    } catch (const SQLite::Exception& e) {
+        std::cerr << "Error creating database: " << e.what() << std::endl;
+        throw;
+    }
+
+    // Here is where the parsing logic will begin
 }
 
 // This method finds all apt.dat files within an X-Plane installation and assigns the paths to the
@@ -89,27 +110,6 @@ void NavDataManager::getAirportDatPaths(const std::string& xp_dir) {
     }
 }
 
-void NavDataManager::generateDatabase(const std::string& db_path) {
-    try {
-        m_db = std::make_unique<SQLite::Database>(
-            db_path,
-            SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE
-        );
-
-        // Create tables after opening the database
-        createTables();
-
-        if (m_loggingEnabled) {
-            std::cout << "Database created at: " << db_path << std::endl;
-        }
-    } catch (const SQLite::Exception& e) {
-        std::cerr << "Error creating database: " << e.what() << std::endl;
-        throw;
-    }
-
-    // Here is where the parsing logic will begin
-}
-
 void NavDataManager::createTables() {
     try {
         m_db->exec(R"sql(
@@ -153,4 +153,11 @@ void NavDataManager::createTables() {
     } catch (const SQLite::Exception& e) {
         std::cerr << "Error creating tables: " << e.what() << std::endl;
     }
+}
+
+void NavDataManager::parseAllDatFiles() {
+    for (const auto& file: m_allAptFiles) {
+        m_parser->parseAirportDat(file, m_db.get());
+    }
+    // Handle other file types...
 }

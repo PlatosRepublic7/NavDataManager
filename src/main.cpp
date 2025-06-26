@@ -15,6 +15,9 @@ int main() {
     // Call generateDatabase()
     manager.generateDatabase(db_directory);
 
+    // Call the parser
+    manager.parseAllDatFiles();
+
     std::cout << "NavDataManager test completed." << std::endl;
     return 0;
 }

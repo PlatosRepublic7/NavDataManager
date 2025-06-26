@@ -37,18 +37,8 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-# Gather all library source files (excluding main.cpp)
-file(GLOB NAVDATA_SRC CONFIGURE_DEPENDS src/*.cpp)
-list(REMOVE_ITEM NAVDATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
-
-add_library(NavDataManager STATIC ${NAVDATA_SRC})
-
-target_include_directories(NavDataManager PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-    $<INSTALL_INTERFACE:include>
-)
-
-target_link_libraries(NavDataManager PUBLIC SQLiteCpp)
+# Add subdirectories for each component
+add_subdirectory(src/navlib)
 
 # Driver executable for development/testing
 add_executable(mdriver src/main.cpp)
