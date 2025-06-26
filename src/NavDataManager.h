@@ -8,17 +8,35 @@ namespace fs = std::filesystem;
 
 class NavDataManager {
     public:
-        // Constructor that initializes the database with the given directory
-        NavDataManager(const std::string& db_directory);
+        /**
+         * @brief Constructs a NavDataManager.
+         * @param xp_root_path Path to the X-Plane root.
+         * @param logging Enable/Disable logging to standard output.
+         */
+        NavDataManager(const std::string& xp_root_path, bool logging=false);
 
-        // Parse navigation data from files and populate the database
-        void updateDatabase(const std::string& xp_root_path);
+        /**
+         * @brief Scans and collects all needed .dat files within the X-Plane installation.
+         * @throws fs::filesystem_error or std::exception if installation does not contain global apt.dat or Custom Scenery directory can not be found.
+         */
+        void scanXP();
+
+        /**
+        * @brief Generates the navigation database.
+        * @param db_path Path to the SQLite database file.
+        * @throws SQLite::Exception if the database cannot be created.
+        */
+        void generateDatabase(const std::string& db_path);
 
     private:
-        SQLite::Database m_db;
+        std::unique_ptr<SQLite::Database> m_db;
         std::string m_dataDirectory;
         std::string m_xpDirectory;
-        fs::path m_airportDataPath;
+        fs::path m_globalAirportDataPath;
+        fs::path m_customSceneryPath;
+        bool m_loggingEnabled;
+        std::vector<fs::path> m_allAptFiles;
 
+        void getAirportDatPaths(const std::string& xp_dir);
         void createTables();
 };

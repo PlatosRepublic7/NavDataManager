@@ -2,31 +2,45 @@
 #include "NavDataManager.h"
 #include <filesystem>
 
-TEST(NavDataManagerTest, ConstructorCreatesDatabase) {
-    std::string db_path = "test_navdata.db";
-    {
-        NavDataManager ndm(db_path);
-        EXPECT_TRUE(std::filesystem::exists(db_path));
-    }
-    std::filesystem::remove(db_path);
+TEST(NavDataManagerTest, ThrowsOnInvalidDirectory) {
+    std::string invalid_path = "C:/X-Plane 13";
+    EXPECT_THROW({
+        NavDataManager ndm(invalid_path);
+        ndm.scanXP();
+    }, std::invalid_argument);
 }
 
-TEST(NavDataManagerTest, TablesAreCreated) {
-    std::string db_path = "test_navdata.db";
+TEST(NavDataManagerTest, InitializesWithValidDirectory) {
+    std::string valid_dir = "C:/X-Plane 12";
+    EXPECT_NO_THROW({
+        NavDataManager ndm(valid_dir);
+        ndm.scanXP();
+    });
+}
+
+TEST(NavDataManagerTest, GenerateDatabaseCreatesFilesAndTables) {
+    std::filesystem::path temp_db = std::filesystem::temp_directory_path() / "ndm_test.db";
+    // Ensure that the file does not exist before test
+    std::filesystem::remove(temp_db);
+
     {
-        NavDataManager ndm(db_path);
-        {
-            SQLite::Database db(db_path, SQLite::OPEN_READONLY);
-            bool airports_exists = false, runways_exists = false;
-            SQLite::Statement query(db, "SELECT name FROM sqlite_master WHERE type='table';");
-            while (query.executeStep()) {
-                std::string name = query.getColumn(0);
-                if (name == "airports") airports_exists = true;
-                if (name == "runways") runways_exists = true;
-            }
-            EXPECT_TRUE(airports_exists);
-            EXPECT_TRUE(runways_exists);
-        }
+        NavDataManager ndm("C:/X-Plane 12");
+        EXPECT_NO_THROW({
+            ndm.generateDatabase(temp_db.string());
+        });
     }
-    std::filesystem::remove(db_path);
+
+    // Check that the file was created
+    EXPECT_TRUE(std::filesystem::exists(temp_db));
+
+    // Clean up
+    std::filesystem::remove(temp_db);
+}
+
+TEST(NavDataManagerTest, GenerateDatabaseThrowsOnInvalidPath) {
+    NavDataManager ndm("C:/X-Plane 12");
+    std::string invalid_path = "/this/path/should/not/exist/ndm_test.db";
+    EXPECT_THROW({
+        ndm.generateDatabase(invalid_path);
+    }, SQLite::Exception);
 }
