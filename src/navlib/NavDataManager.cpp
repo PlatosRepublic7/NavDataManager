@@ -4,12 +4,15 @@
 #include <string>
 #include <algorithm>
 #include <sqlite3.h>
+#include <SQLiteCpp/Transaction.h>
 
 namespace fs = std::filesystem;
 
 // Constructor
-NavDataManager::NavDataManager(const std::string& xp_root_path, bool logging) : m_xpDirectory(xp_root_path), m_loggingEnabled(logging), m_db(nullptr) {
-}
+NavDataManager::NavDataManager(const std::string& xp_root_path, bool logging) 
+    : m_xpDirectory(xp_root_path), m_loggingEnabled(logging), m_db(nullptr),
+      m_parser(std::make_unique<XPlaneDatParser>(logging))     
+{}
 
 void NavDataManager::scanXP() {
     try {
@@ -156,8 +159,19 @@ void NavDataManager::createTables() {
 }
 
 void NavDataManager::parseAllDatFiles() {
-    for (const auto& file: m_allAptFiles) {
-        m_parser->parseAirportDat(file, m_db.get());
+    // Perhaps it is best to open a transaction here, that way we make database commits more efficient
+    try {
+        SQLite::Transaction transaction(*m_db);
+
+        for (const auto& file: m_allAptFiles) {
+            m_parser->parseAirportDat(file, m_db.get());
+        }
+        // Handle other file types...
+
+        // Close the transaction and commit if everything succeeded
+        transaction.commit();
+    } catch (const std::exception& e) {
+        std::cerr << "Error during parsing: " << e.what() << std::endl;
+        throw;
     }
-    // Handle other file types...
 }
