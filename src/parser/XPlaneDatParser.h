@@ -29,10 +29,10 @@ class XPlaneDatParser {
         XPlaneDatParser(bool logging = false);
 
         // Parses a single .dat file and returns structured data or writes to a database
-        void parseAirportDat(const fs::path& file, SQLite::Database* db);
+        void parse_airport_dat(const fs::path& file, SQLite::Database* db);
 
     private:
-        bool m_loggingEnabled;
-        AirportMeta m_currentAirport;
-        std::string m_currentAirportICAO;
+        bool m_logging_enabled;
+        AirportMeta m_current_airport;
+        std::string m_current_airport_icao;
 };

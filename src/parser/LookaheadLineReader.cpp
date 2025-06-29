@@ -6,51 +6,51 @@ namespace fs = std::filesystem;
 
 LookaheadLineReader::LookaheadLineReader(const fs::path& file) : m_path(file), m_fstream(file) {}
 
-bool LookaheadLineReader::getNextLine() {
+bool LookaheadLineReader::get_next_line() {
     bool success = false;
-    if (m_bufferedLine) {
-        m_currentLine = std::move(*m_bufferedLine);
-        m_bufferedLine.reset();
+    if (m_buffered_line) {
+        m_current_line = std::move(*m_buffered_line);
+        m_buffered_line.reset();
         success = true;
     } else {
-        success = static_cast<bool>(std::getline(m_fstream, m_currentLine));
+        success = static_cast<bool>(std::getline(m_fstream, m_current_line));
     }
-    tokenizeLine(m_currentLine);
+    tokenize_line(m_current_line);
     
     return success;
 }
 
-void LookaheadLineReader::putLineBack() {
-    if (m_bufferedLine) {
+void LookaheadLineReader::put_line_back() {
+    if (m_buffered_line) {
         throw std::logic_error("Cannot put back more than one line at a time.");
     }
-    m_bufferedLine = m_currentLine;
+    m_buffered_line = m_current_line;
 }
 
-std::vector<std::string_view> LookaheadLineReader::getLineTokens() {
-    // This should also compute and validate m_rowCode
-    std::string sRowCode;
-    if (!m_lineTokens.empty()) {
+std::vector<std::string_view> LookaheadLineReader::get_line_tokens() {
+    // This should also compute and validate m_row_code
+    std::string s_row_code;
+    if (!m_line_tokens.empty()) {
         try {
-            std::string rcLineToken = std::string(m_lineTokens[0]);
-            if (std::isdigit(rcLineToken[0])) {
-                m_rowCode = std::stoi(rcLineToken);
+            std::string rc_line_token = std::string(m_line_tokens[0]);
+            if (std::isdigit(rc_line_token[0])) {
+                m_row_code = std::stoi(rc_line_token);
             } else {
-                m_rowCode = -1;
+                m_row_code = -1;
             }
         } catch (const std::exception& e) {
             std::cerr << "Error computing row code: " << e.what() << std::endl;
             throw;
         }
     }
-    return m_lineTokens;
+    return m_line_tokens;
 }
 
-int LookaheadLineReader::getRowCode() {
-    return m_rowCode;
+int LookaheadLineReader::get_row_code() {
+    return m_row_code;
 }
 
-void LookaheadLineReader::tokenizeLine(std::string_view line) {
+void LookaheadLineReader::tokenize_line(std::string_view line) {
     std::vector<std::string_view> tokens;
     size_t start = 0, end;
     while ((end = line.find_first_of(" \t", start)) != std::string_view::npos) {
@@ -63,5 +63,5 @@ void LookaheadLineReader::tokenizeLine(std::string_view line) {
     if (start < line.size()) {
         tokens.emplace_back(line.substr(start));
     }
-    m_lineTokens = tokens;
+    m_line_tokens = tokens;
 }

@@ -38,7 +38,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 # Add subdirectories for each component
-add_subdirectory(src/navlib)
+add_subdirectory(src)
 
 # Driver executable for development/testing
 add_executable(mdriver src/main.cpp)
@@ -54,3 +54,10 @@ target_link_libraries(run_tests PRIVATE NavDataManager GTest::gtest_main)
 # Discover and add tests
 include(GoogleTest)
 gtest_discover_tests(run_tests)
+
+# Install rules for library and public headers
+install(TARGETS NavDataManager
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin)
+install(DIRECTORY include/NavDataManager/ DESTINATION include/NavDataManager)

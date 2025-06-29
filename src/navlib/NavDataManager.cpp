@@ -1,22 +1,45 @@
-#include "NavDataManager.h"
+#include <NavDataManager/NavDataManager.h>
+#include "XPlaneDatParser.h"
 #include <iostream>
+#include <vector>
 #include <filesystem>
 #include <string>
 #include <algorithm>
 #include <sqlite3.h>
 #include <SQLiteCpp/Transaction.h>
+#include <SQLiteCpp/Database.h>
+
 
 namespace fs = std::filesystem;
 
+struct NavDataManager::Impl {
+    std::unique_ptr<SQLite::Database> m_db;
+    std::string m_data_directory;
+    std::string m_xp_directory;
+    fs::path m_global_airport_data_path;
+    fs::path m_custom_scenery_path;
+    bool m_logging_enabled;
+    std::vector<fs::path> m_all_apt_files;
+    std::unique_ptr<XPlaneDatParser> m_parser;
+
+    Impl(const std::string& xp_root_path, bool logging)
+        : m_xp_directory(xp_root_path), m_logging_enabled(logging), m_db(nullptr),
+        m_parser(std::make_unique<XPlaneDatParser>(logging)) {}
+
+    void get_airport_dat_paths(const std::string& xp_dir);
+    void create_tables();
+    void parse_all_dat_files();
+};
+
 // Constructor
 NavDataManager::NavDataManager(const std::string& xp_root_path, bool logging) 
-    : m_xpDirectory(xp_root_path), m_loggingEnabled(logging), m_db(nullptr),
-      m_parser(std::make_unique<XPlaneDatParser>(logging))     
-{}
+    : m_impl(std::make_unique<Impl>(xp_root_path, logging)) {}
 
-void NavDataManager::scanXP() {
+NavDataManager::~NavDataManager() = default;
+
+void NavDataManager::scan_xp() {
     try {
-        getAirportDatPaths(m_xpDirectory);
+        m_impl->get_airport_dat_paths(m_impl->m_xp_directory);
         // TODO: Add getNavDataPaths and handle similarly
     } catch (const std::exception& e) {
         std::cerr << "NavDataManager scanning failed: " << e.what() << std::endl;
@@ -24,17 +47,17 @@ void NavDataManager::scanXP() {
     }
 }
 
-void NavDataManager::generateDatabase(const std::string& db_path) {
+void NavDataManager::generate_database(const std::string& db_path) {
     try {
-        m_db = std::make_unique<SQLite::Database>(
+        m_impl->m_db = std::make_unique<SQLite::Database>(
             db_path,
             SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE
         );
 
         // Create tables after opening the database
-        createTables();
+        m_impl->create_tables();
 
-        if (m_loggingEnabled) {
+        if (m_impl->m_logging_enabled) {
             std::cout << "Database created at: " << db_path << std::endl;
         }
     } catch (const SQLite::Exception& e) {
@@ -45,9 +68,33 @@ void NavDataManager::generateDatabase(const std::string& db_path) {
     // Here is where the parsing logic will begin
 }
 
+void NavDataManager::parse_all_dat_files() {
+    m_impl->parse_all_dat_files();
+}
+
+void NavDataManager::Impl::parse_all_dat_files() {
+    // Perhaps it is best to open a transaction here, that way we make database commits more efficient
+    try {
+        SQLite::Transaction transaction(*m_db);
+
+        for (const auto& file: m_all_apt_files) {
+            m_parser->parse_airport_dat(file, m_db.get());
+        }
+        // Handle other file types...
+
+        // Close the transaction and commit if everything succeeded
+        transaction.commit();
+    } catch (const std::exception& e) {
+        std::cerr << "Error during parsing: " << e.what() << std::endl;
+        throw;
+    }
+}
+
+// ------ Implementation of Impl methods -----
+
 // This method finds all apt.dat files within an X-Plane installation and assigns the paths to the
 // required private member variables.
-void NavDataManager::getAirportDatPaths(const std::string& xp_dir) {
+void NavDataManager::Impl::get_airport_dat_paths(const std::string& xp_dir) {
     try {
         bool in_global_scenery = false;
         std::vector<std::string> airport_scenery_extensions = {"Global Scenery", "Custom Scenery"};
@@ -65,14 +112,14 @@ void NavDataManager::getAirportDatPaths(const std::string& xp_dir) {
             if (scenery_folder == "Global Scenery") {
                 scenery_dir /= "Global Airports";
                 scenery_dir /= "Earth nav data";
-                m_globalAirportDataPath = scenery_dir;
+                m_global_airport_data_path = scenery_dir;
                 in_global_scenery = true;
             } else {
-                m_customSceneryPath = scenery_dir;
+                m_custom_scenery_path = scenery_dir;
                 in_global_scenery = false;
             }
 
-            if (m_loggingEnabled) {
+            if (m_logging_enabled) {
                 std::cout << "Finding all apt.dat files..." << std::endl;
                 std::cout << "Scanning " << scenery_dir.string() << "..." << std::endl;
             }
@@ -96,8 +143,8 @@ void NavDataManager::getAirportDatPaths(const std::string& xp_dir) {
 
                     // If the entry was not skipped, check if it's our target
                     if (entry.is_regular_file() && entry.path().filename() == "apt.dat") {
-                        m_allAptFiles.push_back(entry.path());
-                        if (m_loggingEnabled) {
+                        m_all_apt_files.push_back(entry.path());
+                        if (m_logging_enabled) {
                             std::cout << "  -> Located File: " << entry.path().string() << std::endl;
                         }
                     }
@@ -108,12 +155,12 @@ void NavDataManager::getAirportDatPaths(const std::string& xp_dir) {
             }
         }
     } catch (const std::exception& e) {
-        std::cerr << "Error in getAirportDatPaths: " << e.what() << std::endl;
+        std::cerr << "Error in get_airport_dat_paths: " << e.what() << std::endl;
         throw;
     }
 }
 
-void NavDataManager::createTables() {
+void NavDataManager::Impl::create_tables() {
     try {
         m_db->exec(R"sql(
             CREATE TABLE IF NOT EXISTS airports (
@@ -155,23 +202,5 @@ void NavDataManager::createTables() {
         )sql");
     } catch (const SQLite::Exception& e) {
         std::cerr << "Error creating tables: " << e.what() << std::endl;
-    }
-}
-
-void NavDataManager::parseAllDatFiles() {
-    // Perhaps it is best to open a transaction here, that way we make database commits more efficient
-    try {
-        SQLite::Transaction transaction(*m_db);
-
-        for (const auto& file: m_allAptFiles) {
-            m_parser->parseAirportDat(file, m_db.get());
-        }
-        // Handle other file types...
-
-        // Close the transaction and commit if everything succeeded
-        transaction.commit();
-    } catch (const std::exception& e) {
-        std::cerr << "Error during parsing: " << e.what() << std::endl;
-        throw;
     }
 }

@@ -1,4 +1,4 @@
-#include "NavDataManager.h"
+#include <NavDataManager/NavDataManager.h>
 #include <iostream>
 
 int main() {
@@ -9,14 +9,14 @@ int main() {
     // Create an instance of NavDataManager
     NavDataManager manager(xp_root_path, true);
 
-    // Call scan()
-    manager.scanXP();
+    // Call scan_xp()
+    manager.scan_xp();
 
-    // Call generateDatabase()
-    manager.generateDatabase(db_directory);
+    // Call generate_database()
+    manager.generate_database(db_directory);
 
     // Call the parser
-    manager.parseAllDatFiles();
+    manager.parse_all_dat_files();
 
     std::cout << "NavDataManager test completed." << std::endl;
     return 0;
