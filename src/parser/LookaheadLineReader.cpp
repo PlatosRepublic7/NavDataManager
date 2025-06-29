@@ -15,7 +15,6 @@ bool LookaheadLineReader::get_next_line() {
     } else {
         success = static_cast<bool>(std::getline(m_fstream, m_current_line));
     }
-    tokenize_line(m_current_line);
     
     return success;
 }
@@ -28,8 +27,11 @@ void LookaheadLineReader::put_line_back() {
 }
 
 std::vector<std::string_view> LookaheadLineReader::get_line_tokens() {
-    // This should also compute and validate m_row_code
-    std::string s_row_code;
+    tokenize_line(m_current_line);
+    return m_line_tokens;
+}
+
+int LookaheadLineReader::get_row_code() {
     if (!m_line_tokens.empty()) {
         try {
             std::string rc_line_token = std::string(m_line_tokens[0]);
@@ -43,10 +45,6 @@ std::vector<std::string_view> LookaheadLineReader::get_line_tokens() {
             throw;
         }
     }
-    return m_line_tokens;
-}
-
-int LookaheadLineReader::get_row_code() {
     return m_row_code;
 }
 

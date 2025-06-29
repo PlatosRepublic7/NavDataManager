@@ -1,5 +1,6 @@
 #include <NavDataManager/NavDataManager.h>
 #include "XPlaneDatParser.h"
+#include "schema.h"             // run: cmake --build build --target schema_header before normal build!!!
 #include <iostream>
 #include <vector>
 #include <filesystem>
@@ -64,13 +65,13 @@ void NavDataManager::generate_database(const std::string& db_path) {
         std::cerr << "Error creating database: " << e.what() << std::endl;
         throw;
     }
-
-    // Here is where the parsing logic will begin
 }
 
 void NavDataManager::parse_all_dat_files() {
     m_impl->parse_all_dat_files();
 }
+
+// ------ Implementation of Impl methods -----
 
 void NavDataManager::Impl::parse_all_dat_files() {
     // Perhaps it is best to open a transaction here, that way we make database commits more efficient
@@ -89,8 +90,6 @@ void NavDataManager::Impl::parse_all_dat_files() {
         throw;
     }
 }
-
-// ------ Implementation of Impl methods -----
 
 // This method finds all apt.dat files within an X-Plane installation and assigns the paths to the
 // required private member variables.
@@ -162,44 +161,7 @@ void NavDataManager::Impl::get_airport_dat_paths(const std::string& xp_dir) {
 
 void NavDataManager::Impl::create_tables() {
     try {
-        m_db->exec(R"sql(
-            CREATE TABLE IF NOT EXISTS airports (
-                icao TEXT PRIMARY KEY,
-                iata TEXT,
-                faa TEXT,
-                airport_name TEXT,
-                elevation INTEGER,
-                type TEXT,
-                latitude REAL,
-                longitude REAL,
-                country TEXT,
-                city TEXT,
-                region TEXT,
-                transition_alt INTEGER,
-                transition_level INTEGER
-            );
-            CREATE TABLE IF NOT EXISTS runways (
-                runway_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                airport_icao TEXT,
-                width REAL,
-                surface INTEGER,
-                end1_rw_number TEXT NOT NULL,
-                end1_lat REAL,
-                end1_lon REAL,
-                end1_d_threshold REAL,
-                end1_rw_marking_code INTEGER,
-                end1_rw_app_light_code INTEGER,
-                end2_rw_number TEXT NOT NULL,
-                end2_lat REAL,
-                end2_lon REAL,
-                end2_d_threshold REAL,
-                end2_rw_marking_code INTEGER,
-                end2_rw_app_light_code INTEGER,
-
-                UNIQUE (airport_icao, end1_rw_number, end2_rw_number),
-                FOREIGN KEY (airport_icao) REFERENCES airports (icao)
-            );
-        )sql");
+        m_db->exec(navdata_schema);
     } catch (const SQLite::Exception& e) {
         std::cerr << "Error creating tables: " << e.what() << std::endl;
     }

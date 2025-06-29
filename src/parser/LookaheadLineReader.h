@@ -8,6 +8,15 @@
 
 namespace fs = std::filesystem;
 
+/*
+    The purpose of this class is to act as a wrapper for getline() that allows for "putting back" lines.
+    The pattern is simple: We use a private buffer to hold lines we have "put back". So any time get_next_line() is called,
+    we check m_buffered_line: If it's empty, we call getline() as per usual, but if something is in m_buffered_line, we std::move() it
+    into the current_line, and clear the buffer. When we call put_line_back() we check if the buffer is full, and add the line to it or throw
+    an error (only one line is allowed in the buffer at a time). We also incorporate tokenization here as a convenience, since the parser design
+    revolves around it, as well as row_code generation.
+*/
+
 class LookaheadLineReader {
     public:
         LookaheadLineReader(const fs::path& file);
