@@ -27,7 +27,7 @@ TEST(NavDataManagerTest, GenerateDatabaseCreatesFilesAndTables) {
     {
         NavDataManager ndm("C:/X-Plane 12");
         EXPECT_NO_THROW({
-            ndm.generate_database(temp_db.string());
+            ndm.connect_database(temp_db.string());
         });
     }
 
@@ -42,6 +42,6 @@ TEST(NavDataManagerTest, GenerateDatabaseThrowsOnInvalidPath) {
     NavDataManager ndm("C:/X-Plane 12");
     std::string invalid_path = "/this/path/should/not/exist/ndm_test.db";
     EXPECT_THROW({
-        ndm.generate_database(invalid_path);
+        ndm.connect_database(invalid_path);
     }, SQLite::Exception);
 }

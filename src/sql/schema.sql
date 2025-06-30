@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS airports (
     country TEXT,
     city TEXT,
     region TEXT,
-    transition_alt INTEGER,
-    transition_level INTEGER
+    transition_alt TEXT,
+    transition_level TEXT
 );
 CREATE TABLE IF NOT EXISTS runways (
     runway_id INTEGER PRIMARY KEY AUTOINCREMENT,

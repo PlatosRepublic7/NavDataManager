@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Find required dependencies
+find_dependency(SQLiteCpp)
+
+# Include the targets file
+include("${CMAKE_CURRENT_LIST_DIR}/NavDataManagerTargets.cmake")
+
+check_required_components(NavDataManager)

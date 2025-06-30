@@ -2,6 +2,8 @@
 #include <string>
 #include <memory>
 
+class AirportQuery;
+
 class NavDataManager {
     public:
         /**
@@ -24,14 +26,15 @@ class NavDataManager {
         void scan_xp();
 
         /**
-        * @brief Generates/updates the navigation database and parses all found .dat files.
+        * @brief Creates/Connects the navigation database.
         * @param db_path Path to the SQLite database file.
-        * @throws SQLite::Exception if the database cannot be created.
-        * @note This method will potentially take some time to complete.
+        * @throws SQLite::Exception if the database cannot be created or found.
         */
-        void generate_database(const std::string& db_path);
+        void connect_database(const std::string& db_path);
 
         void parse_all_dat_files();
+
+        AirportQuery& airports();
 
     private:
         struct Impl;

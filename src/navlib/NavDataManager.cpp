@@ -1,4 +1,5 @@
 #include <NavDataManager/NavDataManager.h>
+#include <NavDataManager/AirportQuery.h>
 #include "XPlaneDatParser.h"
 #include "schema.h"             // run: cmake --build build --target schema_header before normal build!!!
 #include <iostream>
@@ -6,6 +7,7 @@
 #include <filesystem>
 #include <string>
 #include <algorithm>
+#include <chrono>
 #include <sqlite3.h>
 #include <SQLiteCpp/Transaction.h>
 #include <SQLiteCpp/Database.h>
@@ -14,22 +16,28 @@
 namespace fs = std::filesystem;
 
 struct NavDataManager::Impl {
-    std::unique_ptr<SQLite::Database> m_db;
     std::string m_data_directory;
     std::string m_xp_directory;
     fs::path m_global_airport_data_path;
     fs::path m_custom_scenery_path;
     bool m_logging_enabled;
+    std::unique_ptr<SQLite::Database> m_db;
     std::vector<fs::path> m_all_apt_files;
     std::unique_ptr<XPlaneDatParser> m_parser;
+    std::unique_ptr<AirportQuery> airport_query;
 
     Impl(const std::string& xp_root_path, bool logging)
         : m_xp_directory(xp_root_path), m_logging_enabled(logging), m_db(nullptr),
         m_parser(std::make_unique<XPlaneDatParser>(logging)) {}
 
     void get_airport_dat_paths(const std::string& xp_dir);
-    void create_tables();
+    void apply_schema();
     void parse_all_dat_files();
+    void insert_airports(const std::vector<AirportMeta>& airports);
+    
+    void initialize_queries() {
+        airport_query = std::make_unique<AirportQuery>(m_db.get());
+    }
 };
 
 // Constructor
@@ -48,7 +56,7 @@ void NavDataManager::scan_xp() {
     }
 }
 
-void NavDataManager::generate_database(const std::string& db_path) {
+void NavDataManager::connect_database(const std::string& db_path) {
     try {
         m_impl->m_db = std::make_unique<SQLite::Database>(
             db_path,
@@ -56,7 +64,9 @@ void NavDataManager::generate_database(const std::string& db_path) {
         );
 
         // Create tables after opening the database
-        m_impl->create_tables();
+        m_impl->apply_schema();
+
+        m_impl->initialize_queries();
 
         if (m_impl->m_logging_enabled) {
             std::cout << "Database created at: " << db_path << std::endl;
@@ -77,17 +87,62 @@ void NavDataManager::Impl::parse_all_dat_files() {
     // Perhaps it is best to open a transaction here, that way we make database commits more efficient
     try {
         SQLite::Transaction transaction(*m_db);
-
+        int curr_file_num = 0;
         for (const auto& file: m_all_apt_files) {
-            m_parser->parse_airport_dat(file, m_db.get());
+            if (m_logging_enabled) {
+                curr_file_num++;
+                std::cout << "Parsing File (" << curr_file_num << "/" << m_all_apt_files.size() << ")..." << std::endl;
+            }
+            auto begin_time = std::chrono::steady_clock::now();
+            ParsedAptData parsed_data = m_parser->parse_airport_dat(file);
+            auto end_time = std::chrono::steady_clock::now();
+
+            if (m_logging_enabled) {
+                auto parse_duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - begin_time);
+                std::cout << "Parsing Duration: " << parse_duration.count() << " seconds.\n" << std::endl;
+            }
+            insert_airports(parsed_data.airports);
         }
         // Handle other file types...
 
+        if (m_logging_enabled) {
+            std::cout << "Parsing Complete." << std::endl;
+            for (int i = 0; i < 50; ++i) {
+                std::cout << "-";
+            }
+            std::cout << std::endl;
+        }
         // Close the transaction and commit if everything succeeded
         transaction.commit();
     } catch (const std::exception& e) {
-        std::cerr << "Error during parsing: " << e.what() << std::endl;
         throw;
+    }
+}
+
+void NavDataManager::Impl::insert_airports(const std::vector<AirportMeta>& airports) {
+    SQLite::Statement stmt(*m_db, R"(
+        INSERT OR REPLACE INTO airports
+        (icao, iata, faa, airport_name, elevation, type, latitude, longitude, country, city, region, transition_alt, transition_level)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )");
+
+    for (const auto& airport : airports) {
+        airport.icao ? stmt.bind(1, *airport.icao) : stmt.bind(1);
+        airport.iata ? stmt.bind(2, *airport.iata) : stmt.bind(2);
+        airport.faa ? stmt.bind(3, *airport.faa) : stmt.bind(3);
+        airport.airport_name ? stmt.bind(4, *airport.airport_name) : stmt.bind(4);
+        airport.elevation ? stmt.bind(5, *airport.elevation) : stmt.bind(5);
+        airport.type ? stmt.bind(6, *airport.type) : stmt.bind(6);
+        airport.latitude ? stmt.bind(7, *airport.latitude): stmt.bind(7);
+        airport.longitude ? stmt.bind(8, *airport.longitude) : stmt.bind(8);
+        airport.country ? stmt.bind(9, *airport.country) : stmt.bind(9);
+        airport.city ? stmt.bind(10, *airport.city) : stmt.bind(10);
+        airport.region ? stmt.bind(11, *airport.region) : stmt.bind(11);
+        airport.transition_alt ? stmt.bind(12, *airport.transition_alt) : stmt.bind(12);
+        airport.transition_level ? stmt.bind(13, *airport.transition_level) : stmt.bind(13);
+
+        stmt.executeStep();
+        stmt.reset();
     }
 }
 
@@ -157,12 +212,27 @@ void NavDataManager::Impl::get_airport_dat_paths(const std::string& xp_dir) {
         std::cerr << "Error in get_airport_dat_paths: " << e.what() << std::endl;
         throw;
     }
+
+    if (m_logging_enabled) {
+        std::cout << "Found " << m_all_apt_files.size() << " apt.dat files." << std::endl;
+        for (int i = 0; i < 50; ++i) {
+            std::cout << "-";
+        }
+        std::cout << std::endl;
+    }
 }
 
-void NavDataManager::Impl::create_tables() {
+void NavDataManager::Impl::apply_schema() {
     try {
         m_db->exec(navdata_schema);
     } catch (const SQLite::Exception& e) {
         std::cerr << "Error creating tables: " << e.what() << std::endl;
     }
+}
+
+AirportQuery& NavDataManager::airports() {
+    if (!m_impl->airport_query) {
+        throw std::runtime_error("Database not connected. Call connect_database() first.");
+    }
+    return *m_impl->airport_query;
 }

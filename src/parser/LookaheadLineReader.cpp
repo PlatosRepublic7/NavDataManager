@@ -4,7 +4,17 @@
 
 namespace fs = std::filesystem;
 
-LookaheadLineReader::LookaheadLineReader(const fs::path& file) : m_path(file), m_fstream(file) {}
+LookaheadLineReader::LookaheadLineReader(const fs::path& file, bool logging) : m_path(file), m_line_number(0), m_bytes_processed(0), m_logging_enabled(logging) {
+    // Open in binary mode for accurate byte counting
+    m_fstream.open(file, std::ios::binary);
+    
+    if (!m_fstream.is_open()) {
+        throw std::runtime_error("Could not open file: " + m_path.string());
+    }
+    if (fs::exists(m_path) && fs::is_regular_file(m_path)) {
+        m_file_size = fs::file_size(file);
+    }
+}
 
 bool LookaheadLineReader::get_next_line() {
     bool success = false;
@@ -14,8 +24,14 @@ bool LookaheadLineReader::get_next_line() {
         success = true;
     } else {
         success = static_cast<bool>(std::getline(m_fstream, m_current_line));
+        m_line_number += 1; 
+    }
+
+    if (success) {
+        m_bytes_processed += m_current_line.length() + 1;
     }
     
+    get_progress(success);
     return success;
 }
 
@@ -24,6 +40,10 @@ void LookaheadLineReader::put_line_back() {
         throw std::logic_error("Cannot put back more than one line at a time.");
     }
     m_buffered_line = m_current_line;
+    m_bytes_processed -= m_current_line.length() + 1;
+    
+    // We want to clear the tokens vector to prepare for getting it again and re-tokenizing
+    m_line_tokens.clear();
 }
 
 std::vector<std::string_view> LookaheadLineReader::get_line_tokens() {
@@ -62,4 +82,45 @@ void LookaheadLineReader::tokenize_line(std::string_view line) {
         tokens.emplace_back(line.substr(start));
     }
     m_line_tokens = tokens;
+}
+
+void LookaheadLineReader::get_progress(bool in_progress) {
+    if (m_file_size == 0) return;
+
+    int bar_width = 50, update_interval = 50;
+    if (in_progress && m_logging_enabled) {
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_progress_update).count() < update_interval) return;
+        m_last_progress_update = now;
+
+        float percent = static_cast<float>(m_bytes_processed) / m_file_size;
+        if (percent > 1.0f) percent = 1.0f;
+
+        int pos = static_cast<int>(bar_width * percent);
+
+        m_progress_stream.str("");
+        m_progress_stream.clear();
+        m_progress_stream << "\r[";
+        for (int i = 0; i < bar_width; ++i) {
+            if (i < pos) {
+                m_progress_stream << "=";
+            } else if (i == pos) {
+                m_progress_stream << ">";
+            } else {
+                m_progress_stream << " ";
+            }
+        }
+
+        m_progress_stream << "] " << std::setw(3) << static_cast<int>(percent * 100.0) << "%" << std::setw(11) << m_bytes_processed << "/" << m_file_size << " bytes | " << m_path;
+        std::cout << m_progress_stream.str();
+        std::cout.flush();
+    } else if (!in_progress && m_logging_enabled) {
+        std::cout << "\r[";
+        for (int i = 0; i < bar_width; ++i) {
+            std::cout << "=";
+        }
+        std::cout << "] 100%" << std::setw(11) << m_bytes_processed << "/" << m_file_size << " bytes | " << m_path << std::endl;
+    } else {
+        return;
+    }
 }
