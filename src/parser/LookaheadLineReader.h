@@ -29,19 +29,17 @@ class LookaheadLineReader {
         int get_line_number() { return m_line_number; }
 
     private:
-        // File-related memeber variables
-        std::ifstream m_fstream;
         fs::path m_path;
-        uintmax_t m_file_size;                          // File size in bytes
+        int m_line_number;
         uintmax_t m_bytes_processed;
-
+        bool m_logging_enabled;
+        std::ifstream m_fstream;
+        uintmax_t m_file_size;                          // File size in bytes
+        
         // Progress Tracking (mutable because it's internal bookkeeping)
         mutable std::chrono::steady_clock::time_point m_last_progress_update;
         mutable std::ostringstream m_progress_stream;
-        bool m_logging_enabled;
-
-        // Line-related member variables
-        int m_line_number;
+        
         std::string m_current_line;
         std::optional<std::string> m_buffered_line;
         int m_row_code;

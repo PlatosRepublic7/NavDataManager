@@ -28,6 +28,11 @@ ParsedAptData XPlaneDatParser::parse_airport_dat(const fs::path& file) {
                     reader.put_line_back();
                     process_airport_meta(reader, parsed_data);
                     break;
+
+                // Runway case
+                case 100:
+                    reader.put_line_back();
+                    process_runway(reader, parsed_data);
             }
         } catch (const std::exception& e) {
             std::cerr << "\nError parsing " << file.string() << ": " << e.what() << std::endl;
@@ -156,16 +161,68 @@ void XPlaneDatParser::process_airport_meta(LookaheadLineReader& reader, ParsedAp
                     break;
             }
         } catch (const std::exception& e) { 
-            std::ostringstream error_msg;
-            std::string line_data;
-            std::string token_data_str = "[";
-            for (const auto& token : tokens) {
-                line_data += std::string(token) + " ";
-                token_data_str += " \'" + std::string(token) + "\' ";
-            }
-            token_data_str += "]";
-            error_msg << "\nParser Error at line: " << reader.get_line_number() << "\nLine Data: " << line_data << "\nTokens: " << token_data_str << "\nRuntime Error: " << e.what();
+            std::ostringstream error_msg = write_parser_error(reader, tokens, e);
             throw std::runtime_error(error_msg.str());
         }
     }
+}
+
+void XPlaneDatParser::process_runway(LookaheadLineReader& reader, ParsedAptData& data) {
+    RunwayData runway_data;
+    bool is_valid_row_code = true;
+
+    while (reader.get_next_line()) {
+        auto tokens = reader.get_line_tokens();
+        int row_code = reader.get_row_code();
+        if (tokens.empty()) continue;
+        if (!is_valid_row_code) {
+            reader.put_line_back();
+            break;
+        }
+        try {
+            switch (row_code) {
+                case 100: {
+                    runway_data.airport_icao = m_current_airport_icao;
+                    runway_data.width = std::stod(std::string(tokens[1]));
+                    runway_data.surface = std::stoi(std::string(tokens[2]));
+                    runway_data.end1_rw_number = std::string(tokens[8]);
+                    runway_data.end1_lat = std::stod(std::string(tokens[9]));
+                    runway_data.end1_lon = std::stod(std::string(tokens[10]));
+                    runway_data.end1_d_threshold = std::stod(std::string(tokens[11]));
+                    runway_data.end1_rw_marking_code = std::stoi(std::string(tokens[13]));
+                    runway_data.end1_rw_app_light_code = std::stoi(std::string(tokens[14]));
+                    runway_data.end2_rw_number = std::string(tokens[17]);
+                    runway_data.end2_lat = std::stod(std::string(tokens[18]));
+                    runway_data.end2_lon = std::stod(std::string(tokens[19]));
+                    runway_data.end2_d_threshold = std::stod(std::string(tokens[20]));
+                    runway_data.end2_rw_marking_code = std::stoi(std::string(tokens[22]));
+                    runway_data.end2_rw_app_light_code = std::stoi(std::string(tokens[23]));
+
+                    data.runways.push_back(std::move(runway_data));
+                    break;
+                }
+                default:
+                    is_valid_row_code = false;
+                    reader.put_line_back();
+                    break;
+            }
+        } catch (const std::exception& e) {
+            std::ostringstream error_msg = write_parser_error(reader, tokens, e);
+            throw std::runtime_error(error_msg.str());
+        }
+    }
+}
+
+// Utility function for Parser errors
+std::ostringstream XPlaneDatParser::write_parser_error(LookaheadLineReader& reader, std::vector<std::string_view>& tokens, const std::exception& e) {
+    std::ostringstream error_msg;
+    std::string line_data;
+    std::string token_data_str = "[";
+    for (const auto& token : tokens) {
+        line_data += std::string(token) + " ";
+        token_data_str += " \'" + std::string(token) + "\' ";
+    }
+    token_data_str += "]";
+    error_msg << "\nParser Error at line: " << reader.get_line_number() << "\nLine Data: " << line_data << "\nTokens: " << token_data_str << "\nRuntime Error: " << e.what();
+    return error_msg;
 }

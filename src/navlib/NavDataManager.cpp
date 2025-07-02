@@ -1,7 +1,7 @@
 #include <NavDataManager/NavDataManager.h>
 #include <NavDataManager/AirportQuery.h>
 #include "XPlaneDatParser.h"
-#include "schema.h"             // run: cmake --build build --target schema_header before normal build!!!
+#include "schema.h"
 #include <iostream>
 #include <vector>
 #include <filesystem>
@@ -34,6 +34,7 @@ struct NavDataManager::Impl {
     void apply_schema();
     void parse_all_dat_files();
     void insert_airports(const std::vector<AirportMeta>& airports);
+    void insert_runways(const std::vector<RunwayData>& runways);
     
     void initialize_queries() {
         airport_query = std::make_unique<AirportQuery>(m_db.get());
@@ -70,6 +71,10 @@ void NavDataManager::connect_database(const std::string& db_path) {
 
         if (m_impl->m_logging_enabled) {
             std::cout << "Database created at: " << db_path << std::endl;
+            for (int i = 0; i < 50; ++i) {
+                std::cout << "-";
+            }
+            std::cout << std::endl;
         }
     } catch (const SQLite::Exception& e) {
         std::cerr << "Error creating database: " << e.what() << std::endl;
@@ -87,26 +92,25 @@ void NavDataManager::Impl::parse_all_dat_files() {
     // Perhaps it is best to open a transaction here, that way we make database commits more efficient
     try {
         SQLite::Transaction transaction(*m_db);
+        if (m_logging_enabled) {
+            std::cout << "Parsing apt.dat files..." << std::endl;
+        }
         int curr_file_num = 0;
+        auto begin_time = std::chrono::steady_clock::now();
         for (const auto& file: m_all_apt_files) {
             if (m_logging_enabled) {
                 curr_file_num++;
-                std::cout << "Parsing File (" << curr_file_num << "/" << m_all_apt_files.size() << ")..." << std::endl;
+                std::cout << "(" << curr_file_num << "/" << m_all_apt_files.size() << ")..." << std::endl;
             }
-            auto begin_time = std::chrono::steady_clock::now();
             ParsedAptData parsed_data = m_parser->parse_airport_dat(file);
-            auto end_time = std::chrono::steady_clock::now();
-
-            if (m_logging_enabled) {
-                auto parse_duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - begin_time);
-                std::cout << "Parsing Duration: " << parse_duration.count() << " seconds.\n" << std::endl;
-            }
             insert_airports(parsed_data.airports);
+            insert_runways(parsed_data.runways);
         }
         // Handle other file types...
-
+        auto end_time = std::chrono::steady_clock::now();
         if (m_logging_enabled) {
-            std::cout << "Parsing Complete." << std::endl;
+            auto parse_duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - begin_time);
+            std::cout << "Parsing Completed in " << parse_duration.count() << " seconds." << std::endl;
             for (int i = 0; i < 50; ++i) {
                 std::cout << "-";
             }
@@ -140,6 +144,36 @@ void NavDataManager::Impl::insert_airports(const std::vector<AirportMeta>& airpo
         airport.region ? stmt.bind(11, *airport.region) : stmt.bind(11);
         airport.transition_alt ? stmt.bind(12, *airport.transition_alt) : stmt.bind(12);
         airport.transition_level ? stmt.bind(13, *airport.transition_level) : stmt.bind(13);
+
+        stmt.executeStep();
+        stmt.reset();
+    }
+}
+
+void NavDataManager::Impl::insert_runways(const std::vector<RunwayData>& runways) {
+    SQLite::Statement stmt(*m_db, R"(
+        INSERT OR REPLACE INTO runways
+        (airport_icao, width, surface, end1_rw_number, end1_lat, end1_lon, end1_d_threshold, end1_rw_marking_code, end1_rw_app_light_code, 
+         end2_rw_number, end2_lat, end2_lon, end2_d_threshold, end2_rw_marking_code, end2_rw_app_light_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )");
+
+    for (const auto& runway: runways) {
+        runway.airport_icao ? stmt.bind(1, *runway.airport_icao): stmt.bind(1);
+        runway.width ? stmt.bind(2, *runway.width) : stmt.bind(2);
+        runway.surface ? stmt.bind(3, *runway.surface) : stmt.bind(3);
+        runway.end1_rw_number ? stmt.bind(4, *runway.end1_rw_number) : stmt.bind(4);
+        runway.end1_lat ? stmt.bind(5, *runway.end1_lat) : stmt.bind(5);
+        runway.end1_lon ? stmt.bind(6, *runway.end1_lon) : stmt.bind(6);
+        runway.end1_d_threshold ? stmt.bind(7, *runway.end1_d_threshold) : stmt.bind(7);
+        runway.end1_rw_marking_code ? stmt.bind(8, *runway.end1_rw_marking_code) : stmt.bind(8);
+        runway.end1_rw_app_light_code ? stmt.bind(9, *runway.end1_rw_app_light_code) : stmt.bind(9);
+        runway.end2_rw_number ? stmt.bind(10, *runway.end2_rw_number) : stmt.bind(10);
+        runway.end2_lat ? stmt.bind(11, *runway.end2_lat) : stmt.bind(11);
+        runway.end2_lon ? stmt.bind(12, *runway.end2_lon) : stmt.bind(12);
+        runway.end2_d_threshold ? stmt.bind(13, *runway.end2_d_threshold) : stmt.bind(13);
+        runway.end2_rw_marking_code ? stmt.bind(14, *runway.end2_rw_marking_code) : stmt.bind(14);
+        runway.end2_rw_app_light_code ? stmt.bind(15, *runway.end2_rw_app_light_code) : stmt.bind(15);
 
         stmt.executeStep();
         stmt.reset();
@@ -230,7 +264,7 @@ void NavDataManager::Impl::apply_schema() {
     }
 }
 
-AirportQuery& NavDataManager::airports() {
+AirportQuery& NavDataManager::airport_data() {
     if (!m_impl->airport_query) {
         throw std::runtime_error("Database not connected. Call connect_database() first.");
     }

@@ -34,7 +34,7 @@ class NavDataManager {
 
         void parse_all_dat_files();
 
-        AirportQuery& airports();
+        AirportQuery& airport_data();
 
     private:
         struct Impl;

@@ -5,28 +5,9 @@
 #include <string_view>
 #include <vector>
 #include <filesystem>
-#include <optional>
 #include <SQLiteCpp/Database.h>
 
 namespace fs = std::filesystem;
-
-struct RunwayData {
-    std::optional<std::string> airport_icao;  // Foreign key to airport
-    std::optional<double> width;
-    std::optional<int> surface;
-    std::optional<std::string> end1_rw_number;
-    std::optional<double> end1_lat;
-    std::optional<double> end1_lon;
-    std::optional<double> end1_d_threshold;
-    std::optional<int> end1_rw_marking_code;
-    std::optional<int> end1_rw_app_light_code;
-    std::optional<std::string> end2_rw_number;
-    std::optional<double> end2_lat;
-    std::optional<double> end2_lon;
-    std::optional<double> end2_d_threshold;
-    std::optional<int> end2_rw_marking_code;
-    std::optional<int> end2_rw_app_light_code;
-};
 
 // Container for all parsed data from a single .dat file
 struct ParsedAptData {
@@ -36,7 +17,7 @@ struct ParsedAptData {
 
 class XPlaneDatParser {
     public:
-        XPlaneDatParser(bool logging = false);
+        explicit XPlaneDatParser(bool logging = false);
 
         std::vector<AirportMeta> airport_meta_batch;
 
@@ -49,4 +30,7 @@ class XPlaneDatParser {
         std::string m_current_airport_icao;
 
         void process_airport_meta(LookaheadLineReader& reader, ParsedAptData& data);
+        void process_runway(LookaheadLineReader& reader, ParsedAptData& data);
+
+        std::ostringstream write_parser_error(LookaheadLineReader& reader, std::vector<std::string_view>& tokens, const std::exception& e);
 };

@@ -1,7 +1,115 @@
-#include "NavDataManager/AirportQuery.h"
+#include <NavDataManager/AirportQuery.h>
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <sstream>
 #include <algorithm>
+
+std::vector<RunwayData> RunwayQueryBuilder::execute() {
+    std::vector<RunwayData> results;
+
+    // Build dynamic query
+    std::ostringstream query;
+    query << "SELECT airport_icao, width, surface, end1_rw_number, end1_lat, end1_lon, end1_d_threshold, end1_rw_marking_code, end1_rw_app_light_code, "
+          << "end2_rw_number, end2_lat, end2_lon, end2_d_threshold, end2_rw_marking_code, end2_rw_app_light_code FROM runways";
+    
+    std::vector<std::string> conditions;
+    if (airport_filter) conditions.push_back("airport_icao = ?");
+    if (surface_filter) conditions.push_back("surface = ?");
+    if (min_width_filter) conditions.push_back("width >= ?");
+    if (runway_number_filter) conditions.push_back("end1_rw_number = ? OR end2_rw_number = ?");
+    
+    if (!conditions.empty()) {
+        query << " WHERE " << conditions[0];
+        for (size_t i = 1; i < conditions.size(); ++i) {
+            query << " AND " << conditions[i];
+        }
+    }
+
+    if (sort_by_icao) query << " ORDER BY airport_icao";
+    if (limit > 0) query << " LIMIT " << limit;
+
+    try {
+        SQLite::Statement stmt(*m_db, query.str());
+
+        // bind parameters
+        int param_index = 1;
+        if (airport_filter) stmt.bind(param_index++, *airport_filter);
+        if (surface_filter) stmt.bind(param_index++, *surface_filter);
+        if (min_width_filter) stmt.bind(param_index++, *min_width_filter);
+        if (runway_number_filter) stmt.bind(param_index++, *runway_number_filter);
+
+        while (stmt.executeStep()) {
+            RunwayData runway;
+
+            if (!stmt.isColumnNull(0)) runway.airport_icao = stmt.getColumn(0).getString();
+            if (!stmt.isColumnNull(1)) runway.width = stmt.getColumn(1).getDouble();
+            if (!stmt.isColumnNull(2)) runway.surface = stmt.getColumn(2).getInt();
+            if (!stmt.isColumnNull(3)) runway.end1_rw_number = stmt.getColumn(3).getString();
+            if (!stmt.isColumnNull(4)) runway.end1_lat = stmt.getColumn(4).getDouble();
+            if (!stmt.isColumnNull(5)) runway.end1_lon = stmt.getColumn(5).getDouble();
+            if (!stmt.isColumnNull(6)) runway.end1_d_threshold = stmt.getColumn(6).getDouble();
+            if (!stmt.isColumnNull(7)) runway.end1_rw_marking_code = stmt.getColumn(7).getInt();
+            if (!stmt.isColumnNull(8)) runway.end1_rw_app_light_code = stmt.getColumn(8).getInt();
+            if (!stmt.isColumnNull(9)) runway.end2_rw_number = stmt.getColumn(9).getString();
+            if (!stmt.isColumnNull(10)) runway.end2_lat = stmt.getColumn(10).getDouble();
+            if (!stmt.isColumnNull(11)) runway.end2_lon = stmt.getColumn(11).getDouble();
+            if (!stmt.isColumnNull(12)) runway.end2_d_threshold = stmt.getColumn(12).getDouble();
+            if (!stmt.isColumnNull(13)) runway.end2_rw_marking_code = stmt.getColumn(13).getInt();
+            if (!stmt.isColumnNull(14)) runway.end2_rw_app_light_code = stmt.getColumn(14).getInt();
+
+            results.push_back(runway);
+        }
+    } catch (SQLite::Exception& e) {
+        throw std::runtime_error("Runway query failed: " + std::string(e.what()));
+    }
+
+    return results;
+}
+
+std::optional<RunwayData> RunwayQueryBuilder::first() {
+    limit = 1;
+    auto results = execute();
+    return results.empty() ? std::nullopt : std::make_optional(results[0]);
+}
+
+size_t RunwayQueryBuilder::count() {
+    std::ostringstream query;
+    query << "SELECT COUNT(*) FROM runways";
+
+    std::vector<std::string> conditions;
+    if (airport_filter) conditions.push_back("airport_icao LIKE ?");
+    if (surface_filter) conditions.push_back("surface = ?");
+    if (min_width_filter) conditions.push_back("width >= ?");
+    if (runway_number_filter) conditions.push_back("end1_rw_number = ? OR end2_rw_number = ?");
+    
+    if (!conditions.empty()) {
+        query << " WHERE " << conditions[0];
+        for (size_t i = 1; i < conditions.size(); ++i) {
+            query << " AND " << conditions[i];
+        }
+    }
+
+    if (sort_by_icao) query << " ORDER BY airport_icao";
+    if (limit > 0) query << " LIMIT " << limit;
+
+    try {
+        SQLite::Statement stmt(*m_db, query.str());
+
+        // bind parameters
+        int param_index = 1;
+        if (airport_filter) stmt.bind(param_index++, "%" + *airport_filter + "%");
+        if (surface_filter) stmt.bind(param_index++, *surface_filter);
+        if (min_width_filter) stmt.bind(param_index++, *min_width_filter);
+        if (runway_number_filter) stmt.bind(param_index++, *runway_number_filter);
+
+        if (stmt.executeStep()) {
+            return static_cast<size_t>(stmt.getColumn(0).getInt64());
+        }
+    } catch (SQLite::Exception& e) {
+        throw std::runtime_error("Runway query failed: " + std::string(e.what()));
+    }
+
+    return 0;
+}
 
 std::vector<AirportMeta> AirportQueryBuilder::execute() {
     std::vector<AirportMeta> results;
