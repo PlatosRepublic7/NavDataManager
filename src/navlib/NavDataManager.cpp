@@ -35,6 +35,8 @@ struct NavDataManager::Impl {
     void parse_all_dat_files();
     void insert_airports(const std::vector<AirportMeta>& airports);
     void insert_runways(const std::vector<RunwayData>& runways);
+    void insert_taxiway_nodes(const std::vector<TaxiwayNodeData>& taxiway_nodes);
+    void insert_taxiway_edges(const std::vector<TaxiwayEdgeData>& taxiway_edges);
     
     void initialize_queries() {
         airport_query = std::make_unique<AirportQuery>(m_db.get());
@@ -105,6 +107,8 @@ void NavDataManager::Impl::parse_all_dat_files() {
             ParsedAptData parsed_data = m_parser->parse_airport_dat(file);
             insert_airports(parsed_data.airports);
             insert_runways(parsed_data.runways);
+            insert_taxiway_nodes(parsed_data.taxiway_nodes);
+            insert_taxiway_edges(parsed_data.taxiway_edges);
         }
         // Handle other file types...
         auto end_time = std::chrono::steady_clock::now();
@@ -159,7 +163,7 @@ void NavDataManager::Impl::insert_runways(const std::vector<RunwayData>& runways
     )");
 
     for (const auto& runway: runways) {
-        runway.airport_icao ? stmt.bind(1, *runway.airport_icao): stmt.bind(1);
+        runway.airport_icao ? stmt.bind(1, *runway.airport_icao) : stmt.bind(1);
         runway.width ? stmt.bind(2, *runway.width) : stmt.bind(2);
         runway.surface ? stmt.bind(3, *runway.surface) : stmt.bind(3);
         runway.end1_rw_number ? stmt.bind(4, *runway.end1_rw_number) : stmt.bind(4);
@@ -174,6 +178,45 @@ void NavDataManager::Impl::insert_runways(const std::vector<RunwayData>& runways
         runway.end2_d_threshold ? stmt.bind(13, *runway.end2_d_threshold) : stmt.bind(13);
         runway.end2_rw_marking_code ? stmt.bind(14, *runway.end2_rw_marking_code) : stmt.bind(14);
         runway.end2_rw_app_light_code ? stmt.bind(15, *runway.end2_rw_app_light_code) : stmt.bind(15);
+
+        stmt.executeStep();
+        stmt.reset();
+    }
+}
+
+void NavDataManager::Impl::insert_taxiway_nodes(const std::vector<TaxiwayNodeData>& taxiway_nodes) {
+    SQLite::Statement stmt(*m_db, R"(
+        INSERT OR REPLACE INTO taxi_nodes
+        (node_id, airport_icao, latitude, longitude, node_type)
+        VALUES (?, ?, ?, ?, ?)
+    )");
+
+    for (const auto& taxi_node : taxiway_nodes) {
+        taxi_node.node_id ? stmt.bind(1, *taxi_node.node_id) : stmt.bind(1);
+        taxi_node.airport_icao ? stmt.bind(2, *taxi_node.airport_icao) : stmt.bind(2);
+        taxi_node.latitude ? stmt.bind(3, *taxi_node.latitude) : stmt.bind(3);
+        taxi_node.longitude ? stmt.bind(4, *taxi_node.longitude) : stmt.bind(4);
+        taxi_node.node_type ? stmt.bind(5, *taxi_node.node_type) : stmt.bind(5);
+
+        stmt.executeStep();
+        stmt.reset();
+    }
+}
+
+void NavDataManager::Impl::insert_taxiway_edges(const std::vector<TaxiwayEdgeData>& taxiway_edges) {
+    SQLite::Statement stmt(*m_db, R"(
+        INSERT OR REPLACE INTO taxi_edges
+        (airport_icao, start_node_id, end_node_id, is_two_way, taxiway_name, width_class)
+        VALUES (?, ?, ?, ?, ?, ?)
+    )");
+
+    for (const auto& taxi_edge : taxiway_edges) {
+        taxi_edge.airport_icao ? stmt.bind(1, *taxi_edge.airport_icao) : stmt.bind(1);
+        taxi_edge.start_node_id ? stmt.bind(2, *taxi_edge.start_node_id) : stmt.bind(2);
+        taxi_edge.end_node_id ? stmt.bind(3, *taxi_edge.end_node_id) : stmt.bind(3);
+        taxi_edge.is_two_way ? stmt.bind(4, *taxi_edge.is_two_way) : stmt.bind(4);
+        taxi_edge.taxiway_name ? stmt.bind(5, *taxi_edge.taxiway_name) : stmt.bind(5);
+        taxi_edge.width_class ? stmt.bind(6, *taxi_edge.width_class) : stmt.bind(6);
 
         stmt.executeStep();
         stmt.reset();

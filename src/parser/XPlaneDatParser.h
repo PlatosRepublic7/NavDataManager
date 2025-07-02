@@ -13,6 +13,8 @@ namespace fs = std::filesystem;
 struct ParsedAptData {
     std::vector<AirportMeta> airports;
     std::vector<RunwayData> runways;
+    std::vector<TaxiwayNodeData> taxiway_nodes;
+    std::vector<TaxiwayEdgeData> taxiway_edges;
 };
 
 class XPlaneDatParser {
@@ -31,6 +33,8 @@ class XPlaneDatParser {
 
         void process_airport_meta(LookaheadLineReader& reader, ParsedAptData& data);
         void process_runway(LookaheadLineReader& reader, ParsedAptData& data);
+        void process_taxiway_node(LookaheadLineReader& reader, ParsedAptData& data);
+        void process_taxiway_edge(LookaheadLineReader& reader, ParsedAptData& data);
 
         std::ostringstream write_parser_error(LookaheadLineReader& reader, std::vector<std::string_view>& tokens, const std::exception& e);
 };

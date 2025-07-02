@@ -76,3 +76,20 @@ struct RunwayData {
         return length_meters() * 3.28084;  // Convert to feet
     }
 };
+
+struct TaxiwayNodeData {
+    std::optional<int> node_id;
+    std::optional<std::string> airport_icao;
+    std::optional<double> latitude;
+    std::optional<double> longitude;
+    std::optional<std::string> node_type;
+};
+
+struct TaxiwayEdgeData {
+    std::optional<std::string> airport_icao;
+    std::optional<int> start_node_id;
+    std::optional<int> end_node_id;
+    std::optional<bool> is_two_way;
+    std::optional<std::string> width_class;
+    std::optional<std::string> taxiway_name;
+};

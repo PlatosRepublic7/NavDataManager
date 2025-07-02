@@ -33,6 +33,20 @@ ParsedAptData XPlaneDatParser::parse_airport_dat(const fs::path& file) {
                 case 100:
                     reader.put_line_back();
                     process_runway(reader, parsed_data);
+                    break;
+
+                // Taxiway Network Node
+                case 1200:
+                case 1201:
+                    reader.put_line_back();
+                    process_taxiway_node(reader, parsed_data);
+                    break;
+
+                // Taxiway Network Edge
+                case 1202:
+                    reader.put_line_back();
+                    process_taxiway_edge(reader, parsed_data);
+                    break;
             }
         } catch (const std::exception& e) {
             std::cerr << "\nError parsing " << file.string() << ": " << e.what() << std::endl;
@@ -182,16 +196,25 @@ void XPlaneDatParser::process_runway(LookaheadLineReader& reader, ParsedAptData&
         try {
             switch (row_code) {
                 case 100: {
+                    // Convert Runway numbers to include a leading '0' if they're single digit
+                    std::string rw_numbers[2] = { std::string(tokens[8]), std::string(tokens[17]) };
+                    for (auto& rw_num : rw_numbers) {
+                        bool has_suffix = (rw_num.back() == 'L' || rw_num.back() == 'C' || rw_num.back() == 'R');
+                        if (rw_num.size() < 3 && has_suffix) {
+                            rw_num = "0" + rw_num;
+                        }
+                    }
+
                     runway_data.airport_icao = m_current_airport_icao;
                     runway_data.width = std::stod(std::string(tokens[1]));
                     runway_data.surface = std::stoi(std::string(tokens[2]));
-                    runway_data.end1_rw_number = std::string(tokens[8]);
+                    runway_data.end1_rw_number = rw_numbers[0];
                     runway_data.end1_lat = std::stod(std::string(tokens[9]));
                     runway_data.end1_lon = std::stod(std::string(tokens[10]));
                     runway_data.end1_d_threshold = std::stod(std::string(tokens[11]));
                     runway_data.end1_rw_marking_code = std::stoi(std::string(tokens[13]));
                     runway_data.end1_rw_app_light_code = std::stoi(std::string(tokens[14]));
-                    runway_data.end2_rw_number = std::string(tokens[17]);
+                    runway_data.end2_rw_number = rw_numbers[1];
                     runway_data.end2_lat = std::stod(std::string(tokens[18]));
                     runway_data.end2_lon = std::stod(std::string(tokens[19]));
                     runway_data.end2_d_threshold = std::stod(std::string(tokens[20]));
@@ -199,6 +222,94 @@ void XPlaneDatParser::process_runway(LookaheadLineReader& reader, ParsedAptData&
                     runway_data.end2_rw_app_light_code = std::stoi(std::string(tokens[23]));
 
                     data.runways.push_back(std::move(runway_data));
+                    break;
+                }
+                default:
+                    is_valid_row_code = false;
+                    reader.put_line_back();
+                    break;
+            }
+        } catch (const std::exception& e) {
+            std::ostringstream error_msg = write_parser_error(reader, tokens, e);
+            throw std::runtime_error(error_msg.str());
+        }
+    }
+}
+
+void XPlaneDatParser::process_taxiway_node(LookaheadLineReader& reader, ParsedAptData& data) {
+    TaxiwayNodeData taxiway_node;
+    bool is_valid_row_code = true;
+    while (reader.get_next_line()) {
+        auto tokens = reader.get_line_tokens();
+        int row_code = reader.get_row_code();
+        if (tokens.empty()) continue;
+        if (!is_valid_row_code) {
+            reader.put_line_back();
+            break;
+        }
+        try {
+            switch (row_code) {
+                case 1200:
+                    break;
+                case 1201: {
+                    taxiway_node.node_id = std::stoi(std::string(tokens[4]));
+                    taxiway_node.airport_icao = m_current_airport_icao;
+                    taxiway_node.latitude = std::stod(std::string(tokens[1]));
+                    taxiway_node.longitude = std::stod(std::string(tokens[2]));
+                    taxiway_node.node_type = std::string(tokens[3]);
+
+                    data.taxiway_nodes.push_back(taxiway_node);
+                    break;
+                }
+                default:
+                    is_valid_row_code = false;
+                    reader.put_line_back();
+                    break;
+            }
+        } catch (const std::exception& e) {
+            std::ostringstream error_msg = write_parser_error(reader, tokens, e);
+            throw std::runtime_error(error_msg.str());
+        }
+    }
+}
+
+void XPlaneDatParser::process_taxiway_edge(LookaheadLineReader& reader, ParsedAptData& data) {
+    TaxiwayEdgeData taxiway_edge;
+    bool is_valid_row_code = true;
+    while (reader.get_next_line()) {
+        auto tokens = reader.get_line_tokens();
+        int row_code = reader.get_row_code();
+        if (tokens.empty()) continue;
+        if (!is_valid_row_code) {
+            reader.put_line_back();
+            break;
+        }
+        try {
+            switch (row_code) {
+                case 1202: {
+                    taxiway_edge.airport_icao = m_current_airport_icao;
+                    taxiway_edge.start_node_id = std::stoi(std::string(tokens[1]));
+                    taxiway_edge.end_node_id = std::stoi(std::string(tokens[2]));
+                    std::string is_twoway_string = std::string(tokens[3]);
+                    bool is_two_way = true;
+                    if (is_twoway_string != "twoway") {
+                        is_two_way = false;
+                    }
+                    taxiway_edge.is_two_way = is_two_way;
+                    
+                    std::string width_code = std::string(tokens[4]);
+                    if (!width_code.empty()) {
+                        char last_char = width_code.back();
+                        taxiway_edge.width_class = std::string(1, last_char);
+                    }
+                    
+                    if (tokens.size() > 5) {
+                        taxiway_edge.taxiway_name = std::string(tokens[5]);
+                    } else {
+                        taxiway_edge.taxiway_name = std::nullopt;
+                    }
+
+                    data.taxiway_edges.push_back(taxiway_edge);
                     break;
                 }
                 default:
