@@ -21,8 +21,6 @@ class XPlaneDatParser {
     public:
         explicit XPlaneDatParser(bool logging = false);
 
-        std::vector<AirportMeta> airport_meta_batch;
-
         // Returns all parsed data structures, ready for database insertion
         ParsedAptData parse_airport_dat(const fs::path& file);
 

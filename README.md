@@ -72,7 +72,7 @@ include(FetchContent)
 # Fetch NavDataManager from GitHub
 FetchContent_Declare(
     NavDataManager
-    GIT_REPOSITORY [https://github.com/PlatosRepublic7/NavDataManager.git](https://github.com/PlatosRepublic7/NavDataManager.git)
+    GIT_REPOSITORY https://github.com/PlatosRepublic7/NavDataManager.git
     GIT_TAG        main # release tag will be at a later time
 )
 
@@ -132,7 +132,7 @@ To build the library and its tests from source:
 
 ```bash
 # 1. Clone the repository
-git clone [https://github.com/PlatosRepublic7/NavDataManager.git](https://github.com/PlatosRepublic7/NavDataManager.git)
+git clone https://github.com/PlatosRepublic7/NavDataManager.git
 cd NavDataManager
 
 # 2. Configure CMake
