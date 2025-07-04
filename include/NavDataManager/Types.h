@@ -18,6 +18,7 @@ struct AirportMeta {
     std::optional<double> longitude;
     std::optional<std::string> country;
     std::optional<std::string> city;
+    std::optional<std::string> state;
     std::optional<std::string> region;
     std::optional<std::string> transition_level;
     std::optional<std::string> transition_alt;
@@ -92,4 +93,20 @@ struct TaxiwayEdgeData {
     std::optional<bool> is_two_way;
     std::optional<std::string> width_class;
     std::optional<std::string> taxiway_name;
+};
+
+struct LinearFeatureData {
+    std::optional<std::string> airport_icao;
+    std::optional<int> feature_sequence;
+    std::optional<std::string> line_type;
+};
+
+struct LinearFeatureNodeData {
+    std::optional<std::string> airport_icao;
+    std::optional<int> feature_sequence;
+    std::optional<double> latitude;
+    std::optional<double> longitude;
+    std::optional<double> bezier_latitude;
+    std::optional<double> bezier_longitude;
+    std::optional<int> node_order;
 };

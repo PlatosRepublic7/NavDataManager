@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cctype>
 #include <algorithm>
+#include <set>
 
 namespace fs = std::filesystem;
 
@@ -47,6 +48,12 @@ ParsedAptData XPlaneDatParser::parse_airport_dat(const fs::path& file) {
                     reader.put_line_back();
                     process_taxiway_edge(reader, parsed_data);
                     break;
+
+                // Linear Feature Cases
+                case 120:
+                    reader.put_line_back();
+                    process_linear_feature(reader, parsed_data);
+                    break;
             }
         } catch (const std::exception& e) {
             std::cerr << "\nError parsing " << file.string() << ": " << e.what() << std::endl;
@@ -67,7 +74,7 @@ void XPlaneDatParser::process_airport_meta(LookaheadLineReader& reader, ParsedAp
         if (!is_valid_row_code) {
             try {
                 // Update the context for foreign keys
-                m_current_airport_icao = airport_meta.icao.value();
+                reset_airport_context(airport_meta.icao.value());
 
                 data.airports.push_back(std::move(airport_meta));
             } catch (...) { throw; }
@@ -86,7 +93,7 @@ void XPlaneDatParser::process_airport_meta(LookaheadLineReader& reader, ParsedAp
                     // Check if there is a [H] or [S] token in the vector
                     if (tokens.size() >= 6) {
                         for (size_t i = 3; i < tokens.size(); ++i) {
-                            if (tokens[i] == "[H]" || tokens[i] == "[S]") {
+                            if (tokens[i] == "[H]" || tokens[i] == "[S]" || tokens[i] == "[X]") {
                                 // We found it, and now we can remove it from the vector
                                 tokens.erase(tokens.begin() + i);
                                 break;
@@ -141,6 +148,8 @@ void XPlaneDatParser::process_airport_meta(LookaheadLineReader& reader, ParsedAp
                         airport_meta.city = value;
                     } else if (key == "country") {
                         airport_meta.country = value;
+                    } else if (key == "state") {
+                        airport_meta.state = value;
                     } else if (key == "region_code") {
                         airport_meta.region = value;
                     } else if (key == "transition_alt") {
@@ -320,6 +329,118 @@ void XPlaneDatParser::process_taxiway_edge(LookaheadLineReader& reader, ParsedAp
         } catch (const std::exception& e) {
             std::ostringstream error_msg = write_parser_error(reader, tokens, e);
             throw std::runtime_error(error_msg.str());
+        }
+    }
+}
+
+void XPlaneDatParser::process_linear_feature(LookaheadLineReader& reader, ParsedAptData& data) {
+    LinearFeatureData linear_feature;
+    LinearFeatureNodeData linear_feature_node;
+    std::vector<LinearFeatureNodeData> linear_feature_cache;
+    bool is_valid_row_code = true, feature_header_processed = false;
+    bool is_taxiway_feature = false;
+    int node_order = 0;
+    int assigned_feature_sequence = -1;
+
+    // Set of line type codes relating to taxiways that are important for our purposes (check apt.dat specification for more details)
+    // NOTE: We are trying to capture centerlines, centerline lights, hold-short lines, runway lead-off lights
+    // We are NOT trying to capture edge lighting or boundary features, as this will not add value (at the moment) to our Navigational data.
+    std::set<int> taxiway_codes = {1, 4, 5, 6, 7, 51, 54, 55, 56, 57, 101, 103, 104, 105, 107, 108};
+    while (reader.get_next_line()) {
+        auto tokens = reader.get_line_tokens();
+        int row_code = reader.get_row_code();
+        if (tokens.empty()) continue;
+        if (!is_valid_row_code) {
+            reader.put_line_back();
+            break;
+        }
+        try {
+            switch (row_code) {
+                // Linear feature header
+                case 120: {
+                    if (!feature_header_processed) {
+                        linear_feature.airport_icao = m_current_airport_icao;
+                        assigned_feature_sequence = m_current_airport_feature_sequence++;
+                        linear_feature.feature_sequence = assigned_feature_sequence;
+
+                        if (tokens.size() > 1) {
+                            linear_feature.line_type = std::string(tokens[1]);
+                        }
+                        feature_header_processed = true;
+                    } else {
+                        // We've already processed the feature header
+                        // This means we've likely encountered the next group of feature header + feature nodes
+                        // Better to send it back to the dispatcher...
+                        is_valid_row_code = false;
+                        reader.put_line_back();
+                    }
+                    break;
+                }
+                case 111:
+                case 112:
+                case 113:
+                case 114:
+                case 115:
+                case 116: {
+                    if (!feature_header_processed) {
+                        throw std::runtime_error("Found linear feature node without a header");
+                    }
+                    
+                    int shorter_line_code = 0, longer_line_code = 0;
+                    
+                    // Fetch the data that will always be present
+                    linear_feature_node.airport_icao = m_current_airport_icao;
+                    linear_feature_node.feature_sequence = assigned_feature_sequence;
+                    linear_feature_node.latitude = std::stod(std::string(tokens[1]));
+                    linear_feature_node.longitude = std::stod(std::string(tokens[2]));
+
+                    if (row_code == 112 || row_code == 114 || row_code == 116) {
+                        // Bezier case
+                        linear_feature_node.bezier_latitude = std::stod(std::string(tokens[3]));
+                        linear_feature_node.bezier_longitude = std::stod(std::string(tokens[4]));
+
+                        if (tokens.size() > 5) {
+                            shorter_line_code = std::stoi(std::string(tokens[5]));
+                            if (tokens.size() == 7) {
+                                longer_line_code = std::stoi(std::string(tokens[6]));
+                            }
+                        }
+                    } else {
+                        // Non-Bezier case
+                        if (tokens.size() > 3 && (row_code != 112 || row_code != 114 || row_code != 116)) {
+                            shorter_line_code = std::stoi(std::string(tokens[3]));
+                            if (tokens.size() == 5) {
+                                longer_line_code = std::stoi(std::string(tokens[4]));
+                            }
+                        }
+                    }
+
+                    linear_feature_node.node_order = node_order++;
+
+                    // Check line_code ints to determine if we have found a node that is part of our taxiway_codes set
+                    if (taxiway_codes.count(shorter_line_code) || taxiway_codes.count(longer_line_code)) {
+                        is_taxiway_feature = true;
+                    }
+
+                    linear_feature_cache.push_back(linear_feature_node);
+                    break;
+                }
+                default:
+                    is_valid_row_code = false;
+                    reader.put_line_back();
+                    break;
+            }
+        } catch (const std::exception& e) {
+            std::ostringstream error_msg = write_parser_error(reader, tokens, e);
+            throw std::runtime_error(error_msg.str());
+        }
+    }
+
+    // Once we're out of the while loop, we can add the feature header and node cache to the parsed data structure
+    if (is_taxiway_feature) {
+        data.linear_features.push_back(linear_feature);
+        for (const auto& node : linear_feature_cache) {
+            data.linear_feature_nodes.push_back(node);
         }
     }
 }

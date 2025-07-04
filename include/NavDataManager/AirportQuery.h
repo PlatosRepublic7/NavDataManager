@@ -43,6 +43,7 @@ class AirportQueryBuilder {
         AirportQueryBuilder& icao(const std::string& filter) { icao_filter = filter; return *this; }
         AirportQueryBuilder& country(const std::string& filter) { country_filter = filter; return *this; }
         AirportQueryBuilder& city(const std::string& filter) { city_filter = filter; return *this; }
+        AirportQueryBuilder& state(const std::string& filter) { state_filter = filter; return *this; }
         AirportQueryBuilder& type(const std::string& filter) { type_filter = filter; return *this; }
         AirportQueryBuilder& elevation_range(int min_ft, int max_ft) { 
             min_elevation = min_ft; 
@@ -70,6 +71,7 @@ class AirportQueryBuilder {
         std::optional<std::string> icao_filter;
         std::optional<std::string> country_filter;
         std::optional<std::string> city_filter;
+        std::optional<std::string> state_filter;
         std::optional<std::string> type_filter;
         std::optional<int> min_elevation;
         std::optional<int> max_elevation;
@@ -94,6 +96,10 @@ class AirportQuery {
 
         std::vector<AirportMeta> get_by_country(const std::string& country, int limit = 100) {
             return airports().country(country).max_results(limit).execute();
+        }
+
+        std::vector<AirportMeta> get_by_state(const std::string& state, int limit = 100) {
+            return airports().state(state).max_results(limit).execute();
         }
 
         std::vector<AirportMeta> get_near(double lat, double lon, double radius_km, int limit = 50) {

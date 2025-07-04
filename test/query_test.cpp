@@ -29,6 +29,18 @@ TEST_F(QueryTest, AirportQueryByICAO) {
     EXPECT_EQ(kewr->icao.value(), "KEWR");
 }
 
+TEST_F(QueryTest, AirportByState) {
+    auto nj_airports = manager->airport_data()
+        .airports()
+        .state("New Jersey")
+        .execute();
+    EXPECT_GT(nj_airports.size(), 0);
+
+    for (const auto& airport: nj_airports) {
+        EXPECT_EQ(airport.state.value_or(""), "New Jersey");
+    }
+}
+
 TEST_F(QueryTest, RunwayQueries) {
     auto kewr_runways = manager->airport_data()
         .get_runways_for_airport("KEWR");

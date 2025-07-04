@@ -28,6 +28,7 @@ int main() {
         std::cout << "Found: " << kewr_airport->icao.value_or("N/A") << std::endl;
         std::cout << "Airport Name: " << kewr_airport->display_name() << std::endl;
         std::cout << "Elevation: " << std::to_string(kewr_elevation) << std::endl; 
+        std::cout << "State: " << kewr_airport->state.value_or("") << std::endl;
         
         std::cout << std::endl;
         std::cout << "Runways" << std::endl;

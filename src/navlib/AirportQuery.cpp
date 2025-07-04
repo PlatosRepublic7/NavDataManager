@@ -117,13 +117,14 @@ std::vector<AirportMeta> AirportQueryBuilder::execute() {
     // Build dynamic query
     std::ostringstream query;
     query << "SELECT icao, iata, faa, airport_name, elevation, type, "
-          << "latitude, longitude, country, city, region, "
+          << "latitude, longitude, country, city, state, region, "
           << "transition_alt, transition_level FROM airports";
     
     std::vector<std::string> conditions;
     if (icao_filter) conditions.push_back("icao LIKE ?");
     if (country_filter) conditions.push_back("country LIKE ?");
     if (city_filter) conditions.push_back("city LIKE ?");
+    if (state_filter) conditions.push_back("state LIKE ?");
     if (type_filter) conditions.push_back("type = ?");
     if (min_elevation) conditions.push_back("elevation >= ?");
     if (max_elevation) conditions.push_back("elevation <= ?");
@@ -146,6 +147,7 @@ std::vector<AirportMeta> AirportQueryBuilder::execute() {
         if (icao_filter) stmt.bind(param_index++, "%" + *icao_filter + "%");
         if (country_filter) stmt.bind(param_index++, "%" + *country_filter + "%");
         if (city_filter) stmt.bind(param_index++, "%" + *city_filter + "%");
+        if (state_filter) stmt.bind(param_index++, "%" + *state_filter + "%");
         if (type_filter) stmt.bind(param_index++, *type_filter);
         if (min_elevation) stmt.bind(param_index++, *min_elevation);
         if (max_elevation) stmt.bind(param_index++, *max_elevation);
@@ -163,9 +165,10 @@ std::vector<AirportMeta> AirportQueryBuilder::execute() {
             if (!stmt.isColumnNull(7)) airport.longitude = stmt.getColumn(7).getDouble();
             if (!stmt.isColumnNull(8)) airport.country = stmt.getColumn(8).getString();
             if (!stmt.isColumnNull(9)) airport.city = stmt.getColumn(9).getString();
-            if (!stmt.isColumnNull(10)) airport.region = stmt.getColumn(10).getString();
-            if (!stmt.isColumnNull(11)) airport.transition_alt = stmt.getColumn(11).getString();
-            if (!stmt.isColumnNull(12)) airport.transition_level = stmt.getColumn(12).getString();
+            if (!stmt.isColumnNull(10)) airport.state = stmt.getColumn(10).getString();
+            if (!stmt.isColumnNull(11)) airport.region = stmt.getColumn(11).getString();
+            if (!stmt.isColumnNull(12)) airport.transition_alt = stmt.getColumn(12).getString();
+            if (!stmt.isColumnNull(13)) airport.transition_level = stmt.getColumn(13).getString();
             
             results.push_back(airport);
         }

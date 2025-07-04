@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS airports (
     longitude REAL,
     country TEXT,
     city TEXT,
+    state TEXT,
     region TEXT,
     transition_alt TEXT,
     transition_level TEXT
@@ -36,32 +37,6 @@ CREATE TABLE IF NOT EXISTS runways (
     end2_rw_app_light_code INTEGER,
     UNIQUE (airport_icao, end1_rw_number, end2_rw_number),
     FOREIGN KEY (airport_icao) REFERENCES airports (icao)
-);
-
--- ====================================================================
--- Physical Pavement Geometry (Row Codes 110-116)
--- Defines the physical, drawable shapes of taxiways and aprons.
--- ====================================================================
-CREATE TABLE IF NOT EXISTS pavement_polygons (
-    pavement_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    airport_icao TEXT NOT NULL,
-    surface_type INTEGER,      -- From the 110 header
-    smoothness REAL,           -- From the 110 header
-    texture_heading REAL,      -- From the 110 header
-    FOREIGN KEY (airport_icao) REFERENCES airports (icao)
-);
-
-CREATE TABLE IF NOT EXISTS pavement_nodes (
-    node_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pavement_id INTEGER NOT NULL,
-    latitude REAL NOT NULL,
-    longitude REAL NOT NULL,
-    -- For curved segments (Bezier curves)
-    bezier_latitude REAL,
-    bezier_longitude REAL,
-    is_hole_boundary BOOLEAN NOT NULL DEFAULT 0, -- Differentiates outer vs inner (hole) boundaries
-    node_order INTEGER NOT NULL, -- The sequence of vertices for the polygon
-    FOREIGN KEY (pavement_id) REFERENCES pavement_polygons (pavement_id) ON DELETE CASCADE
 );
 
 -- ====================================================================
@@ -105,20 +80,29 @@ CREATE TABLE IF NOT EXISTS taxiway_signs (
     FOREIGN KEY (airport_icao) REFERENCES airports (icao)
 );
 
+-- ====================================================================
+-- Linear Feature Data (Lines) Row Codes: 111-116 and 120
+-- ====================================================================
+
 CREATE TABLE IF NOT EXISTS linear_features (
-    feature_id INTEGER PRIMARY KEY AUTOINCREMENT,
     airport_icao TEXT NOT NULL,
+    feature_sequence INTEGER NOT NULL,  -- Sequential number airport
     line_type TEXT,              -- Describes the line, e.g., "ILS_hold_short"
+    PRIMARY KEY (airport_icao, feature_sequence),
     FOREIGN KEY (airport_icao) REFERENCES airports (icao)
-);
+); 
 
 CREATE TABLE IF NOT EXISTS linear_feature_nodes (
     node_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    feature_id INTEGER NOT NULL,
+    airport_icao TEXT NOT NULL,
+    feature_sequence INTEGER NOT NULL,
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
-    node_order INTEGER NOT NULL,
-    FOREIGN KEY (feature_id) REFERENCES linear_features (feature_id) ON DELETE CASCADE
+    -- For curved segments (Bezier curves)
+    bezier_latitude REAL,
+    bezier_longitude REAL,
+    node_order INTEGER NOT NULL, -- The sequence of nodes for the linear feature segment
+    FOREIGN KEY (airport_icao, feature_sequence) REFERENCES linear_features (airport_icao, feature_sequence) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS startup_locations (

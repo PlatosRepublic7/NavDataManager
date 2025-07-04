@@ -37,6 +37,8 @@ struct NavDataManager::Impl {
     void insert_runways(const std::vector<RunwayData>& runways);
     void insert_taxiway_nodes(const std::vector<TaxiwayNodeData>& taxiway_nodes);
     void insert_taxiway_edges(const std::vector<TaxiwayEdgeData>& taxiway_edges);
+    void insert_linear_features(const std::vector<LinearFeatureData>& linear_features);
+    void insert_linear_feature_nodes(const std::vector<LinearFeatureNodeData>& linear_feature_nodes);
     
     void initialize_queries() {
         airport_query = std::make_unique<AirportQuery>(m_db.get());
@@ -99,22 +101,31 @@ void NavDataManager::Impl::parse_all_dat_files() {
         }
         int curr_file_num = 0;
         auto begin_time = std::chrono::steady_clock::now();
+        auto total_insertion_time = std::chrono::seconds::zero();
         for (const auto& file: m_all_apt_files) {
             if (m_logging_enabled) {
                 curr_file_num++;
                 std::cout << "(" << curr_file_num << "/" << m_all_apt_files.size() << ")..." << std::endl;
             }
+            
             ParsedAptData parsed_data = m_parser->parse_airport_dat(file);
+            auto begin_insertion_time = std::chrono::steady_clock::now();
             insert_airports(parsed_data.airports);
             insert_runways(parsed_data.runways);
             insert_taxiway_nodes(parsed_data.taxiway_nodes);
             insert_taxiway_edges(parsed_data.taxiway_edges);
+            insert_linear_features(parsed_data.linear_features);
+            insert_linear_feature_nodes(parsed_data.linear_feature_nodes);
+            auto end_insertion_time = std::chrono::steady_clock::now();
+            auto insertion_duration = std::chrono::duration_cast<std::chrono::seconds>(end_insertion_time - begin_insertion_time);
+            total_insertion_time += insertion_duration;
         }
         // Handle other file types...
         auto end_time = std::chrono::steady_clock::now();
         if (m_logging_enabled) {
             auto parse_duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - begin_time);
             std::cout << "Parsing Completed in " << parse_duration.count() << " seconds." << std::endl;
+            std::cout << "Total Insertion Time: " << total_insertion_time.count() << " seconds." << std::endl;
             for (int i = 0; i < 50; ++i) {
                 std::cout << "-";
             }
@@ -130,8 +141,8 @@ void NavDataManager::Impl::parse_all_dat_files() {
 void NavDataManager::Impl::insert_airports(const std::vector<AirportMeta>& airports) {
     SQLite::Statement stmt(*m_db, R"(
         INSERT OR REPLACE INTO airports
-        (icao, iata, faa, airport_name, elevation, type, latitude, longitude, country, city, region, transition_alt, transition_level)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (icao, iata, faa, airport_name, elevation, type, latitude, longitude, country, city, state, region, transition_alt, transition_level)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
     for (const auto& airport : airports) {
@@ -145,9 +156,10 @@ void NavDataManager::Impl::insert_airports(const std::vector<AirportMeta>& airpo
         airport.longitude ? stmt.bind(8, *airport.longitude) : stmt.bind(8);
         airport.country ? stmt.bind(9, *airport.country) : stmt.bind(9);
         airport.city ? stmt.bind(10, *airport.city) : stmt.bind(10);
-        airport.region ? stmt.bind(11, *airport.region) : stmt.bind(11);
-        airport.transition_alt ? stmt.bind(12, *airport.transition_alt) : stmt.bind(12);
-        airport.transition_level ? stmt.bind(13, *airport.transition_level) : stmt.bind(13);
+        airport.state ? stmt.bind(11, *airport.state) : stmt.bind(11);
+        airport.region ? stmt.bind(12, *airport.region) : stmt.bind(12);
+        airport.transition_alt ? stmt.bind(13, *airport.transition_alt) : stmt.bind(13);
+        airport.transition_level ? stmt.bind(14, *airport.transition_level) : stmt.bind(14);
 
         stmt.executeStep();
         stmt.reset();
@@ -217,6 +229,44 @@ void NavDataManager::Impl::insert_taxiway_edges(const std::vector<TaxiwayEdgeDat
         taxi_edge.is_two_way ? stmt.bind(4, *taxi_edge.is_two_way) : stmt.bind(4);
         taxi_edge.taxiway_name ? stmt.bind(5, *taxi_edge.taxiway_name) : stmt.bind(5);
         taxi_edge.width_class ? stmt.bind(6, *taxi_edge.width_class) : stmt.bind(6);
+
+        stmt.executeStep();
+        stmt.reset();
+    }
+}
+
+void NavDataManager::Impl::insert_linear_features(const std::vector<LinearFeatureData>& linear_features) {
+    SQLite::Statement stmt(*m_db, R"(
+        INSERT OR REPLACE INTO linear_features
+        (airport_icao, feature_sequence, line_type)
+        VALUES(?, ?, ?)
+    )");
+
+    for (const auto& feature : linear_features) {
+        feature.airport_icao ? stmt.bind(1, *feature.airport_icao) : stmt.bind(1);
+        feature.feature_sequence ? stmt.bind(2, *feature.feature_sequence) : stmt.bind(2);
+        feature.line_type ? stmt.bind(3, *feature.line_type) : stmt.bind(3);
+
+        stmt.executeStep();
+        stmt.reset();
+    }
+}
+
+void NavDataManager::Impl::insert_linear_feature_nodes(const std::vector<LinearFeatureNodeData>& linear_feature_nodes) {
+    SQLite::Statement stmt(*m_db, R"(
+        INSERT OR REPLACE INTO linear_feature_nodes
+        (airport_icao, feature_sequence, latitude, longitude, bezier_latitude, bezier_longitude, node_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    )");
+
+    for (const auto& node : linear_feature_nodes) {
+        node.airport_icao ? stmt.bind(1, *node.airport_icao) : stmt.bind(1);
+        node.feature_sequence ? stmt.bind(2, *node.feature_sequence) : stmt.bind(2);
+        node.latitude ? stmt.bind(3, *node.latitude) : stmt.bind(3);
+        node.longitude ? stmt.bind(4, *node.longitude) : stmt.bind(4);
+        node.bezier_latitude ? stmt.bind(5, *node.bezier_latitude) : stmt.bind(5);
+        node.bezier_longitude ? stmt.bind(6, *node.bezier_longitude) : stmt.bind(6);
+        node.node_order ? stmt.bind(7, *node.node_order) : stmt.bind(7);
 
         stmt.executeStep();
         stmt.reset();
