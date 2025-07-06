@@ -116,18 +116,22 @@ std::vector<AirportMeta> AirportQueryBuilder::execute() {
     
     // Build dynamic query
     std::ostringstream query;
-    query << "SELECT icao, iata, faa, airport_name, elevation, type, "
-          << "latitude, longitude, country, city, state, region, "
-          << "transition_alt, transition_level FROM airports";
+    query << "SELECT a.icao, a.iata, a.faa, a.airport_name, a.elevation, a.type, "
+          << "a.latitude, a.longitude, c.country_name, ct.city_name, s.state_name, r.region_code, "
+          << "a.transition_alt, a.transition_level FROM airports a "
+          << "LEFT JOIN countries c ON a.country_id = c.country_id "
+          << "LEFT JOIN states s ON a.state_id = s.state_id "
+          << "LEFT JOIN cities ct ON a.city_id = ct.city_id "
+          << "LEFT JOIN regions r ON a.region_id = r.region_id";
     
     std::vector<std::string> conditions;
-    if (icao_filter) conditions.push_back("icao LIKE ?");
-    if (country_filter) conditions.push_back("country LIKE ?");
-    if (city_filter) conditions.push_back("city LIKE ?");
-    if (state_filter) conditions.push_back("state LIKE ?");
-    if (type_filter) conditions.push_back("type = ?");
-    if (min_elevation) conditions.push_back("elevation >= ?");
-    if (max_elevation) conditions.push_back("elevation <= ?");
+    if (icao_filter) conditions.push_back("a.icao LIKE ?");
+    if (country_filter) conditions.push_back("c.country_name LIKE ?");
+    if (city_filter) conditions.push_back("ct.city_name LIKE ?");
+    if (state_filter) conditions.push_back("s.state_name LIKE ?");
+    if (type_filter) conditions.push_back("a.type = ?");
+    if (min_elevation) conditions.push_back("a.elevation >= ?");
+    if (max_elevation) conditions.push_back("a.elevation <= ?");
     
     if (!conditions.empty()) {
         query << " WHERE " << conditions[0];
@@ -136,7 +140,7 @@ std::vector<AirportMeta> AirportQueryBuilder::execute() {
         }
     }
     
-    if (sort_by_icao) query << " ORDER BY icao";
+    if (sort_by_icao) query << " ORDER BY a.icao";
     if (limit > 0) query << " LIMIT " << limit;
     
     try {
@@ -189,15 +193,20 @@ std::optional<AirportMeta> AirportQueryBuilder::first() {
 size_t AirportQueryBuilder::count() {
     // Build count query
     std::ostringstream query;
-    query << "SELECT COUNT(*) FROM airports";
+    query << "SELECT COUNT(*) FROM airports a "
+          << "LEFT JOIN countries c ON a.country_id = c.country_id "
+          << "LEFT JOIN states s ON a.state_id = s.state_id "
+          << "LEFT JOIN cities ct ON a.city_id = ct.city_id "
+          << "LEFT JOIN regions r ON a.region_id = r.region_id";
     
     std::vector<std::string> conditions;
-    if (icao_filter) conditions.push_back("icao LIKE ?");
-    if (country_filter) conditions.push_back("country LIKE ?");
-    if (city_filter) conditions.push_back("city LIKE ?");
-    if (type_filter) conditions.push_back("type = ?");
-    if (min_elevation) conditions.push_back("elevation >= ?");
-    if (max_elevation) conditions.push_back("elevation <= ?");
+    if (icao_filter) conditions.push_back("a.icao LIKE ?");
+    if (country_filter) conditions.push_back("c.country_name LIKE ?");
+    if (city_filter) conditions.push_back("ct.city_name LIKE ?");
+    if (state_filter) conditions.push_back("s.state_name LIKE ?");
+    if (type_filter) conditions.push_back("a.type = ?");
+    if (min_elevation) conditions.push_back("a.elevation >= ?");
+    if (max_elevation) conditions.push_back("a.elevation <= ?");
     
     if (!conditions.empty()) {
         query << " WHERE " << conditions[0];
@@ -214,6 +223,7 @@ size_t AirportQueryBuilder::count() {
         if (icao_filter) stmt.bind(param_index++, "%" + *icao_filter + "%");
         if (country_filter) stmt.bind(param_index++, "%" + *country_filter + "%");
         if (city_filter) stmt.bind(param_index++, "%" + *city_filter + "%");
+        if (state_filter) stmt.bind(param_index++, "%" + *state_filter + "%");
         if (type_filter) stmt.bind(param_index++, *type_filter);
         if (min_elevation) stmt.bind(param_index++, *min_elevation);
         if (max_elevation) stmt.bind(param_index++, *max_elevation);

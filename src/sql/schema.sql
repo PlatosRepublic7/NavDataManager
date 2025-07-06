@@ -10,13 +10,50 @@ CREATE TABLE IF NOT EXISTS airports (
     type TEXT,
     latitude REAL,
     longitude REAL,
-    country TEXT,
-    city TEXT,
-    state TEXT,
-    region TEXT,
+    country_id INTEGER,
+    state_id INTEGER,
+    city_id INTEGER,
+    region_id INTEGER,
     transition_alt TEXT,
-    transition_level TEXT
+    transition_level TEXT,
+    FOREIGN KEY (country_id) REFERENCES countries(country_id),
+    FOREIGN KEY (state_id) REFERENCES states(state_id),
+    FOREIGN KEY (city_id) REFERENCES cities(city_id),
+    FOREIGN KEY (region_id) REFERENCES regions(region_id)
 );
+
+--- Country Normalization
+CREATE TABLE IF NOT EXISTS countries (
+    country_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    country_name TEXT UNIQUE NOT NULL
+);
+
+--- State Normalization
+CREATE TABLE IF NOT EXISTS states (
+    state_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    state_name TEXT NOT NULL,
+    country_id INTEGER,
+    UNIQUE (state_name, country_id),
+    FOREIGN KEY (country_id) REFERENCES countries(country_id)
+);
+
+-- City Normalization
+CREATE TABLE IF NOT EXISTS cities (
+    city_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    city_name TEXT NOT NULL,
+    state_id INTEGER,
+    country_id INTEGER,
+    UNIQUE(city_name, state_id, country_id),
+    FOREIGN KEY (state_id) REFERENCES states(state_id),
+    FOREIGN KEY (country_id) REFERENCES countries(country_id)
+);
+
+--- Region Normalization
+CREATE TABLE IF NOT EXISTS regions (
+    region_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    region_code TEXT UNIQUE NOT NULL
+);
+
 
 CREATE TABLE IF NOT EXISTS runways (
     runway_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,7 +73,7 @@ CREATE TABLE IF NOT EXISTS runways (
     end2_rw_marking_code INTEGER,
     end2_rw_app_light_code INTEGER,
     UNIQUE (airport_icao, end1_rw_number, end2_rw_number),
-    FOREIGN KEY (airport_icao) REFERENCES airports (icao)
+    FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE
 );
 
 -- ====================================================================
@@ -50,7 +87,7 @@ CREATE TABLE IF NOT EXISTS taxi_nodes (
     longitude REAL NOT NULL,
     node_type TEXT,              -- 'junc', 'init', 'end', 'both'
     PRIMARY KEY (node_id, airport_icao),    -- composite primary key
-    FOREIGN KEY (airport_icao) REFERENCES airports (icao)
+    FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS taxi_edges (
@@ -61,7 +98,8 @@ CREATE TABLE IF NOT EXISTS taxi_edges (
     is_two_way BOOLEAN NOT NULL,
     taxiway_name TEXT,           -- The human-readable name, e.g., "A", "B1"
     width_class TEXT,            -- e.g., 'A', 'B', 'C' for aircraft size
-    FOREIGN KEY (airport_icao) REFERENCES airports (icao),
+    UNIQUE (airport_icao, start_node_id, end_node_id),
+    FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE,
     FOREIGN KEY (start_node_id, airport_icao) REFERENCES taxi_nodes (node_id, airport_icao),
     FOREIGN KEY (end_node_id, airport_icao) REFERENCES taxi_nodes (node_id, airport_icao)
 );
@@ -77,7 +115,7 @@ CREATE TABLE IF NOT EXISTS taxiway_signs (
     heading REAL,
     sign_text TEXT,              -- The text displayed on the sign
     size_class INTEGER,
-    FOREIGN KEY (airport_icao) REFERENCES airports (icao)
+    FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE
 );
 
 -- ====================================================================
@@ -89,7 +127,7 @@ CREATE TABLE IF NOT EXISTS linear_features (
     feature_sequence INTEGER NOT NULL,  -- Sequential number airport
     line_type TEXT,              -- Describes the line, e.g., "ILS_hold_short"
     PRIMARY KEY (airport_icao, feature_sequence),
-    FOREIGN KEY (airport_icao) REFERENCES airports (icao)
+    FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE
 ); 
 
 CREATE TABLE IF NOT EXISTS linear_feature_nodes (
@@ -102,6 +140,7 @@ CREATE TABLE IF NOT EXISTS linear_feature_nodes (
     bezier_latitude REAL,
     bezier_longitude REAL,
     node_order INTEGER NOT NULL, -- The sequence of nodes for the linear feature segment
+    UNIQUE (airport_icao, feature_sequence, node_order),
     FOREIGN KEY (airport_icao, feature_sequence) REFERENCES linear_features (airport_icao, feature_sequence) ON DELETE CASCADE
 );
 
@@ -113,5 +152,17 @@ CREATE TABLE IF NOT EXISTS startup_locations (
     heading REAL,
     location_type TEXT,          -- 'Gate', 'Parking', 'Cargo', etc.
     ramp_name TEXT,              -- Name of the gate/spot, e.g., "A17"
-    FOREIGN KEY (airport_icao) REFERENCES airports (icao)
+    FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS scenery_paths (
+    scenery_path_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scenery_path TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Indexes for increased performance
+CREATE INDEX IF NOT EXISTS idx_airports_country_id ON airports(country_id);
+CREATE INDEX IF NOT EXISTS idx_airports_state_id ON airports(state_id);
+CREATE INDEX IF NOT EXISTS idx_airports_city_id ON airports(city_id);
+CREATE INDEX IF NOT EXISTS idx_airports_region_id ON airports(region_id);

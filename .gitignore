@@ -3,4 +3,4 @@ install/
 .vscode/
 planning_docs/
 
-*.db
+*.db*
