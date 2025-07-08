@@ -9,7 +9,6 @@ class NavDataManager {
         /**
          * @brief Constructs a NavDataManager.
          * @param xp_root_path Path to the X-Plane root.
-         * @param force_full_parse Force a full parsing of every .dat file in the X-Plane installation.
          * @param logging Enable/Disable logging to standard output.
          */
         NavDataManager(const std::string& xp_root_path, bool logging=false);
@@ -35,7 +34,7 @@ class NavDataManager {
 
         /**
          * @brief Parses all .dat files and performs database update.
-         * @param force_full_parse
+         * @param force_full_parse Force system to parse all found files.
          * @note First time parsing of data will take upwards of 45 seconds to complete. It is an expensive operation.
          */
         void parse_all_dat_files(bool force_full_parse=false);

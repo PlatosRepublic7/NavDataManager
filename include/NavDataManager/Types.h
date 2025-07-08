@@ -110,3 +110,13 @@ struct LinearFeatureNodeData {
     std::optional<double> bezier_longitude;
     std::optional<int> node_order;
 };
+
+struct StartupLocationData {
+    std::optional<std::string> airport_icao;
+    std::optional<double> latitude;
+    std::optional<double> longitude;
+    std::optional<float> heading;
+    std::optional<std::string> location_type;
+    std::optional<std::string> aircraft_types;
+    std::optional<std::string> ramp_name;
+};

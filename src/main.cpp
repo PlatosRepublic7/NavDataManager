@@ -46,7 +46,7 @@ int main() {
         std::cerr << "Exception caught: " << e.what() << std::endl;
         return 1;
     } catch (...) {
-        std::cerr << "Unkown exception caught! " << std::endl;
+        std::cerr << "Unknown exception caught! " << std::endl;
         return 1;
     }
     return 0;

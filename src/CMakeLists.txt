@@ -26,6 +26,8 @@ add_library(NavDataManager
     
     # Future query files
     navlib/AirportQuery.cpp
+    navlib/NavDataQuery.cpp
+    internal/query/ParserQuery.cpp
     # navlib/RunwayQuery.cpp
     # navlib/NavaidQuery.cpp
     
@@ -48,6 +50,7 @@ target_include_directories(NavDataManager
         ${CMAKE_CURRENT_BINARY_DIR}/sql  # For generated schema.h
         ${CMAKE_CURRENT_SOURCE_DIR}      # For internal headers
         ${CMAKE_CURRENT_SOURCE_DIR}/parser
+        ${CMAKE_CURRENT_SOURCE_DIR}/internal/query
 )
 
 # Link libraries with modern interface

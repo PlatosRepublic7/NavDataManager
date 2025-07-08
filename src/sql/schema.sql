@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS runways (
 
 -- ====================================================================
 -- Logical Taxiway Network Graph (Row Codes 1201-1202)
--- Defines the routing network for ATC and AI. This IS the centerline.
+-- Defines the routing network for ATC and AI.
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS taxi_nodes (
     node_id INTEGER NOT NULL, -- Using the ID from the file directly
@@ -102,20 +102,6 @@ CREATE TABLE IF NOT EXISTS taxi_edges (
     FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE,
     FOREIGN KEY (start_node_id, airport_icao) REFERENCES taxi_nodes (node_id, airport_icao),
     FOREIGN KEY (end_node_id, airport_icao) REFERENCES taxi_nodes (node_id, airport_icao)
-);
-
--- ====================================================================
--- Airport Feature Data (Signs, Lines, Startup Locations)
--- ====================================================================
-CREATE TABLE IF NOT EXISTS taxiway_signs (
-    sign_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    airport_icao TEXT NOT NULL,
-    latitude REAL NOT NULL,
-    longitude REAL NOT NULL,
-    heading REAL,
-    sign_text TEXT,              -- The text displayed on the sign
-    size_class INTEGER,
-    FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE
 );
 
 -- ====================================================================
@@ -155,6 +141,25 @@ CREATE TABLE IF NOT EXISTS startup_locations (
     FOREIGN KEY (airport_icao) REFERENCES airports (icao) ON DELETE CASCADE
 );
 
+-- Aircraft types that can use startup locations
+CREATE TABLE IF NOT EXISTS aircraft_types (
+    aircraft_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    aircraft_type_code TEXT UNIQUE NOT NULL -- 'jets' 'heavy' 'props' etc.
+);
+
+-- Junction table linking startup locations to aircraft types (many-to-many)
+CREATE TABLE IF NOT EXISTS startup_location_aircraft_types (
+    location_id INTEGER NOT NULL,
+    aircraft_type_id INTEGER NOT NULL,
+    PRIMARY KEY (location_id, aircraft_type_id),
+    FOREIGN KEY (location_id) REFERENCES startup_locations (location_id) ON DELETE CASCADE,
+    FOREIGN KEY (aircraft_type_id) REFERENCES aircraft_types (aircraft_type_id) ON DELETE CASCADE
+);
+
+-- ====================================================================
+-- NON X-PLANE DATA
+-- General data for things like path checks, configuration, etc.
+-- ====================================================================
 CREATE TABLE IF NOT EXISTS scenery_paths (
     scenery_path_id INTEGER PRIMARY KEY AUTOINCREMENT,
     scenery_path TEXT NOT NULL,
@@ -166,3 +171,5 @@ CREATE INDEX IF NOT EXISTS idx_airports_country_id ON airports(country_id);
 CREATE INDEX IF NOT EXISTS idx_airports_state_id ON airports(state_id);
 CREATE INDEX IF NOT EXISTS idx_airports_city_id ON airports(city_id);
 CREATE INDEX IF NOT EXISTS idx_airports_region_id ON airports(region_id);
+CREATE INDEX IF NOT EXISTS idx_startup_location_aircraft_types_location ON startup_location_aircraft_types(location_id);
+CREATE INDEX IF NOT EXISTS idx_startup_location_aircraft_types_aircraft ON startup_location_aircraft_types(aircraft_type_id);

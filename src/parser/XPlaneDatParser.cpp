@@ -54,6 +54,12 @@ ParsedAptData XPlaneDatParser::parse_airport_dat(const fs::path& file) {
                     reader.put_line_back();
                     process_linear_feature(reader, parsed_data);
                     break;
+
+                // Startup Locations
+                case 1300:
+                    reader.put_line_back();
+                    process_startup_location(reader, parsed_data);
+                    break;
             }
         } catch (const std::exception& e) {
             std::cerr << "\nError parsing " << file.string() << ": " << e.what() << std::endl;
@@ -441,6 +447,54 @@ void XPlaneDatParser::process_linear_feature(LookaheadLineReader& reader, Parsed
         data.linear_features.push_back(linear_feature);
         for (const auto& node : linear_feature_cache) {
             data.linear_feature_nodes.push_back(node);
+        }
+    }
+}
+
+void XPlaneDatParser::process_startup_location(LookaheadLineReader& reader, ParsedAptData& data) {
+    StartupLocationData startup_location;
+    bool is_valid_row_code = true;
+    while (reader.get_next_line()) {
+        auto tokens = reader.get_line_tokens();
+        int row_code = reader.get_row_code();
+        if (tokens.empty()) continue;
+        if (!is_valid_row_code) {
+            reader.put_line_back();
+            break;
+        }
+        try {
+            switch (row_code) {
+                case 1300: {
+                    startup_location.airport_icao = m_current_airport_icao;
+                    startup_location.latitude = std::stod(std::string(tokens[1]));
+                    startup_location.longitude = std::stod(std::string(tokens[2]));
+                    startup_location.heading = std::stof(std::string(tokens[3]));
+                    startup_location.location_type = std::string(tokens[4]);
+                    startup_location.aircraft_types = std::string(tokens[5]);
+
+                    // Compose the ramp_name string
+                    std::string ramp_name = "";
+                    if (tokens.size() > 6) {
+                        for (size_t i = 6; i < tokens.size(); ++i) {
+                            ramp_name += std::string(tokens[i]);
+                            if (i < tokens.size() - 1) {
+                                ramp_name += " ";
+                            }
+                        }
+                    }
+                    startup_location.ramp_name = ramp_name;
+
+                    data.startup_locations.push_back(startup_location);
+                    break;
+                }
+                default:
+                    is_valid_row_code = false;
+                    reader.put_line_back();
+                    break;
+            }
+        } catch (const std::exception& e) {
+            std::ostringstream error_msg = write_parser_error(reader, tokens, e);
+            throw std::runtime_error(error_msg.str());
         }
     }
 }

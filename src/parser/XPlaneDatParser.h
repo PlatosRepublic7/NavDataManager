@@ -17,6 +17,7 @@ struct ParsedAptData {
     std::vector<TaxiwayEdgeData> taxiway_edges;
     std::vector<LinearFeatureData> linear_features;
     std::vector<LinearFeatureNodeData> linear_feature_nodes;
+    std::vector<StartupLocationData> startup_locations;
 };
 
 class XPlaneDatParser {
@@ -42,6 +43,7 @@ class XPlaneDatParser {
         void process_taxiway_node(LookaheadLineReader& reader, ParsedAptData& data);
         void process_taxiway_edge(LookaheadLineReader& reader, ParsedAptData& data);
         void process_linear_feature(LookaheadLineReader& reader, ParsedAptData& data);
+        void process_startup_location(LookaheadLineReader& reader, ParsedAptData& data);
 
         std::ostringstream write_parser_error(LookaheadLineReader& reader, std::vector<std::string_view>& tokens, const std::exception& e);
 };
